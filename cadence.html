@@ -1,0 +1,3316 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Cadence: evidence-based hospice acuity and staffing tool. Daily assignments, FTE forecasting, supervisor CSV import from Epic, and per-patient task lists. For home hospice and inpatient hospice teams.">
+  <title>Cadence: Hospice Acuity & Staffing</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Lora:ital,wght@0,400;0,500;1,400;1,500&display=swap" rel="stylesheet">
+  <style>
+    /* =====================================================
+       DESIGN TOKENS (PRIMARY palette per palettes.md)
+       ===================================================== */
+    :root {
+      --navy: #1E3D4C;
+      --navy-deep: #142a36;
+      --navy-tint: #EDF1F3;
+      --gold: #E8B72D;
+      --gold-dark: #CA991A;
+      --terra: #C2734D;
+      --terra-dark: #A0522D;
+      --white: #FFFFFF;
+      --off-white: #FAFAF9;
+      --border: #d8dde0;
+      --border-strong: #94a2a9;
+      --muted: #4a5a63;
+      --muted-soft: #6b7780;
+      --danger: #8b2e23;
+      --danger-tint: #f7ecea;
+      --warn: #8a6a1f;
+      --warn-tint: #f7f1e3;
+      --ok: #2b5840;
+      --ok-tint: #e8efea;
+      --shadow-rest: 0 1px 3px rgba(0,0,0,0.08);
+      --shadow-hover: 0 8px 16px rgba(0,0,0,0.10);
+      --radius: 6px;
+      --transition: transform 200ms ease, box-shadow 200ms ease, background-color 150ms ease, color 150ms ease, border-color 150ms ease;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      :root {
+        --transition: none;
+      }
+      *, *::before, *::after { animation: none !important; transition: none !important; }
+    }
+
+    /* =====================================================
+       RESET / BASE
+       ===================================================== */
+    *, *::before, *::after { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      padding: 0;
+      background: var(--off-white);
+      color: var(--navy);
+      font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+      font-size: 16px;
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .skip-link {
+      position: absolute;
+      left: -9999px;
+      top: 0;
+      background: var(--navy);
+      color: var(--white);
+      padding: 12px 18px;
+      z-index: 100;
+      text-decoration: none;
+      font-weight: 600;
+      border-radius: 0 0 var(--radius) 0;
+    }
+    .skip-link:focus { left: 0; outline: 3px solid var(--gold); outline-offset: 2px; }
+
+    /* Focus indicators (AAA visibility) */
+    a:focus-visible, button:focus-visible, input:focus-visible,
+    select:focus-visible, textarea:focus-visible, [role="tab"]:focus-visible {
+      outline: 3px solid var(--gold);
+      outline-offset: 2px;
+    }
+
+    h1, h2, h3, h4 { margin: 0; }
+    h1 { font-weight: 800; color: var(--navy); }
+    h2, h3 { font-weight: 600; color: var(--terra-dark); }
+    p { margin: 0 0 12px; }
+
+    .eyebrow {
+      font-family: 'DM Sans', sans-serif;
+      font-size: 12px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--terra-dark);
+      font-weight: 600;
+    }
+    .usage {
+      font-family: 'Lora', serif;
+      font-style: italic;
+      color: var(--muted);
+      font-size: 15px;
+    }
+
+    /* =====================================================
+       APP SHELL
+       ===================================================== */
+    .app-shell { max-width: 1280px; margin: 0 auto; padding: 24px 24px 80px; }
+
+    .app-header {
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      gap: 16px;
+      flex-wrap: wrap;
+      padding-bottom: 18px;
+      margin-bottom: 18px;
+    }
+    .app-header h1 { font-size: clamp(24px, 3vw, 32px); margin-top: 4px; }
+    .app-header .subhead { font-size: clamp(15px, 1.6vw, 18px); color: var(--terra-dark); font-weight: 600; margin-top: 4px; }
+    .header-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+
+    /* =====================================================
+       BUTTONS
+       ===================================================== */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 16px;
+      border-radius: var(--radius);
+      border: 1px solid var(--navy);
+      background: var(--navy);
+      color: var(--white);
+      font-family: inherit;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      text-decoration: none;
+      transition: var(--transition);
+    }
+    .btn:hover { background: var(--navy-deep); border-color: var(--navy-deep); }
+    .btn-secondary {
+      background: var(--white);
+      color: var(--navy);
+    }
+    .btn-secondary:hover { background: var(--navy-tint); }
+    .btn-gold {
+      background: var(--gold);
+      border-color: var(--gold);
+      color: var(--navy);
+    }
+    .btn-gold:hover { background: var(--gold-dark); border-color: var(--gold-dark); color: var(--navy); }
+    .btn-gold:focus-visible { outline: 3px solid var(--navy); outline-offset: 2px; }
+    .btn-danger {
+      background: var(--white);
+      color: var(--danger);
+      border-color: var(--danger);
+    }
+    .btn-danger:hover { background: var(--danger-tint); }
+    .btn-small { padding: 6px 10px; font-size: 13px; }
+
+    /* =====================================================
+       TABS
+       ===================================================== */
+    .tab-nav {
+      display: flex;
+      gap: 4px;
+      flex-wrap: wrap;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 24px;
+      padding: 0;
+    }
+    .tab-nav button {
+      background: none;
+      border: none;
+      padding: 12px 16px;
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--muted);
+      cursor: pointer;
+      border-bottom: 3px solid transparent;
+      margin-bottom: -1px;
+      transition: var(--transition);
+    }
+    .tab-nav button:hover { color: var(--navy); }
+    .tab-nav button[aria-selected="true"] {
+      color: var(--navy);
+      border-bottom-color: var(--gold);
+    }
+    [role="tabpanel"][hidden] { display: none; }
+
+    /* =====================================================
+       CARDS / GRID
+       ===================================================== */
+    .grid { display: grid; gap: 16px; }
+    .grid-2 { grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); }
+    .grid-3 { grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
+    .grid-4 { grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); }
+
+    .card {
+      background: var(--white);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px;
+      box-shadow: var(--shadow-rest);
+      transition: var(--transition);
+    }
+    .card.lift:hover { transform: translateY(-2px); box-shadow: var(--shadow-hover); }
+    .card h3 { font-size: 17px; margin-bottom: 8px; }
+    .card h4 { font-size: 15px; color: var(--navy); font-weight: 700; margin: 12px 0 6px; }
+
+    .stat {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      font-weight: 800;
+      color: var(--navy);
+      font-size: 32px;
+      line-height: 1.1;
+    }
+    .stat-label {
+      font-family: 'DM Sans', sans-serif;
+      font-size: 12px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-top: 6px;
+    }
+    .stat-sub { font-size: 13px; color: var(--muted-soft); margin-top: 4px; }
+
+    /* =====================================================
+       FORMS
+       ===================================================== */
+    .form-grid { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
+    .field { display: flex; flex-direction: column; gap: 4px; }
+    .field label {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--navy);
+    }
+    .field .hint { font-size: 12px; color: var(--muted-soft); }
+    .field input[type="text"],
+    .field input[type="number"],
+    .field input[type="date"],
+    .field select,
+    .field textarea {
+      font-family: inherit;
+      font-size: 14px;
+      padding: 8px 10px;
+      border: 1px solid var(--border-strong);
+      border-radius: var(--radius);
+      background: var(--white);
+      color: var(--navy);
+      width: 100%;
+    }
+    .field input[type="range"] { width: 100%; accent-color: var(--gold); }
+    .field input[readonly] { background: var(--navy-tint); }
+
+    .check-group { display: grid; gap: 6px; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
+    .check-group label {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--navy);
+      padding: 6px 8px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      cursor: pointer;
+      background: var(--white);
+    }
+    .check-group input[type="checkbox"] { accent-color: var(--gold); width: 16px; height: 16px; }
+
+    .radio-pills { display: flex; flex-wrap: wrap; gap: 6px; }
+    .radio-pills input[type="radio"] { position: absolute; opacity: 0; pointer-events: none; }
+    .radio-pills label {
+      padding: 6px 12px;
+      border: 1px solid var(--border-strong);
+      border-radius: 20px;
+      cursor: pointer;
+      font-size: 13px;
+      background: var(--white);
+      color: var(--navy);
+      font-weight: 500;
+    }
+    .radio-pills input[type="radio"]:checked + label {
+      background: var(--navy);
+      color: var(--white);
+      border-color: var(--navy);
+    }
+    .radio-pills input[type="radio"]:focus-visible + label {
+      outline: 3px solid var(--gold);
+      outline-offset: 2px;
+    }
+
+    /* HOPE symptom row */
+    .symptom-row {
+      display: grid;
+      grid-template-columns: minmax(120px, 1fr) auto;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 0;
+      border-bottom: 1px dashed var(--border);
+    }
+    .symptom-row:last-child { border-bottom: none; }
+    .symptom-row .scale {
+      display: flex;
+      gap: 4px;
+    }
+    .symptom-row .scale label {
+      width: 38px;
+      text-align: center;
+      padding: 6px 0;
+      border: 1px solid var(--border-strong);
+      border-radius: var(--radius);
+      cursor: pointer;
+      font-size: 13px;
+      background: var(--white);
+      color: var(--navy);
+      font-weight: 600;
+    }
+    .symptom-row .scale input[type="radio"] { position: absolute; opacity: 0; pointer-events: none; }
+    .symptom-row .scale input[type="radio"]:checked + label {
+      background: var(--navy);
+      color: var(--white);
+      border-color: var(--navy);
+    }
+    .symptom-row .scale input[type="radio"]:focus-visible + label {
+      outline: 3px solid var(--gold);
+      outline-offset: 2px;
+    }
+
+    /* =====================================================
+       TABLES
+       ===================================================== */
+    .table-wrap {
+      overflow-x: auto;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: var(--white);
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 14px;
+    }
+    th, td {
+      padding: 10px 12px;
+      text-align: left;
+      border-bottom: 1px solid var(--border);
+      vertical-align: top;
+    }
+    th {
+      background: var(--navy-tint);
+      color: var(--navy);
+      font-weight: 700;
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      font-size: 13px;
+      letter-spacing: 0.02em;
+      position: sticky;
+      top: 0;
+    }
+    tbody tr:hover { background: var(--off-white); }
+    tbody tr:last-child td { border-bottom: none; }
+
+    /* =====================================================
+       BADGES / TIER PILLS
+       ===================================================== */
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 3px 10px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+      background: var(--navy-tint);
+      color: var(--navy);
+      border: 1px solid transparent;
+    }
+    .pill.t1 { background: #e8efea; color: #1f4b35; }
+    .pill.t2 { background: #eef3e8; color: #3d5520; }
+    .pill.t3 { background: #f7f1e3; color: var(--warn); }
+    .pill.t4 { background: #f5dec8; color: var(--terra-dark); border-color: var(--terra); }
+    .pill.t5 { background: var(--danger-tint); color: var(--danger); border-color: var(--danger); }
+    .pill.phase-stable { background: #e8efea; color: #1f4b35; }
+    .pill.phase-unstable { background: var(--danger-tint); color: var(--danger); }
+    .pill.phase-deteriorating { background: #f7f1e3; color: var(--warn); }
+    .pill.phase-dying { background: var(--danger-tint); color: var(--danger); border-color: var(--danger); }
+    .pill.loc-RHC { background: var(--navy-tint); color: var(--navy); }
+    .pill.loc-CHC { background: #f5dec8; color: var(--terra-dark); }
+    .pill.loc-GIP { background: var(--danger-tint); color: var(--danger); }
+    .pill.loc-IPU { background: #efe6d0; color: var(--gold-dark); }
+    .pill.loc-RESPITE { background: #e7e9eb; color: var(--muted); }
+
+    .flag-list { display: flex; flex-wrap: wrap; gap: 4px; }
+    .flag-list .flag {
+      font-size: 11px;
+      padding: 2px 6px;
+      background: var(--navy-tint);
+      border-radius: 4px;
+      color: var(--navy);
+    }
+
+    /* =====================================================
+       MODAL
+       ===================================================== */
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(20, 42, 54, 0.55);
+      display: flex;
+      align-items: flex-start;
+      justify-content: center;
+      padding: 40px 20px;
+      z-index: 50;
+      overflow-y: auto;
+    }
+    .modal-backdrop[hidden] { display: none; }
+    .modal {
+      background: var(--white);
+      width: 100%;
+      max-width: 820px;
+      border-radius: var(--radius);
+      padding: 28px;
+      box-shadow: var(--shadow-hover);
+    }
+    .modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+    .modal-close {
+      background: none;
+      border: 1px solid var(--border);
+      width: 36px;
+      height: 36px;
+      border-radius: var(--radius);
+      cursor: pointer;
+      font-size: 18px;
+      color: var(--navy);
+    }
+    .modal section { margin-bottom: 20px; }
+    .modal section h3 { font-size: 14px; color: var(--terra-dark); font-weight: 600; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.06em; font-family: 'DM Sans', sans-serif; }
+
+    /* =====================================================
+       ALERTS / INFO BOXES
+       ===================================================== */
+    .alert {
+      padding: 12px 14px;
+      border-radius: var(--radius);
+      border-left: 4px solid var(--gold);
+      background: var(--navy-tint);
+      margin-bottom: 16px;
+      font-size: 14px;
+    }
+    .alert.danger { background: var(--danger-tint); border-color: var(--danger); color: var(--danger); }
+    .alert.warn { background: var(--warn-tint); border-color: var(--warn); color: var(--warn); }
+    .alert.ok { background: var(--ok-tint); border-color: var(--ok); color: var(--ok); }
+
+    /* Clickable alert disclosure */
+    .alert-toggle {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      width: 100%;
+      background: none;
+      border: none;
+      padding: 0;
+      cursor: pointer;
+      font-family: inherit;
+      font-size: 16px;
+      color: var(--navy);
+    }
+    .alert-toggle-left { display: flex; align-items: center; gap: 10px; }
+    .alert-count-pill {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 28px;
+      height: 28px;
+      padding: 0 8px;
+      border-radius: 999px;
+      background: var(--gold);
+      color: var(--navy);
+      font-weight: 800;
+      font-size: 14px;
+    }
+    .alert-count-pill.zero { background: var(--ok-tint); color: var(--ok); }
+    .alert-count-pill.high { background: var(--danger); color: var(--white); }
+    .alert-toggle-hint { font-size: 13px; color: var(--muted-soft); font-weight: 400; margin-left: 4px; }
+    .alert-chevron {
+      display: inline-block;
+      transition: var(--transition);
+      color: var(--muted);
+      font-size: 14px;
+    }
+    .alert-toggle[aria-expanded="true"] .alert-chevron { transform: rotate(90deg); }
+    .alert-toggle[aria-expanded="true"] + #alert-stack { margin-top: 14px; }
+
+    /* Task disclosure button on census rows */
+    .task-toggle-btn {
+      background: none;
+      border: 1px solid transparent;
+      padding: 2px 6px;
+      border-radius: var(--radius);
+      cursor: pointer;
+      font-family: inherit;
+      display: inline-flex;
+      align-items: center;
+      gap: 2px;
+    }
+    .task-toggle-btn:hover { background: var(--navy-tint); }
+    .task-toggle-btn[aria-expanded="true"] span[aria-hidden] { transform: rotate(90deg); display: inline-block; transition: var(--transition); }
+    .task-toggle-btn span[aria-hidden] { transition: var(--transition); display: inline-block; }
+    code { font-family: 'DM Sans', ui-monospace, monospace; background: var(--white); padding: 1px 5px; border-radius: 3px; font-size: 12.5px; }
+
+    .privacy-banner {
+      background: var(--navy-tint);
+      border: 1px solid var(--navy);
+      padding: 10px 14px;
+      border-radius: var(--radius);
+      font-size: 13px;
+      color: var(--navy);
+      margin-bottom: 18px;
+    }
+
+    /* =====================================================
+       ASSIGN VIEW
+       ===================================================== */
+    .assign-col {
+      background: var(--white);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 16px;
+      box-shadow: var(--shadow-rest);
+      min-height: 200px;
+    }
+    .assign-col h3 { display: flex; justify-content: space-between; align-items: center; }
+    .assign-card {
+      padding: 10px 12px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      margin-bottom: 8px;
+      background: var(--off-white);
+      cursor: grab;
+      font-size: 13px;
+    }
+    .assign-card:active { cursor: grabbing; }
+    .assign-card.tier-high { border-left: 4px solid var(--danger); }
+    .assign-card.tier-mid { border-left: 4px solid var(--gold); }
+    .assign-card.tier-low { border-left: 4px solid var(--ok); }
+
+    .progress {
+      height: 8px;
+      background: var(--navy-tint);
+      border-radius: 999px;
+      overflow: hidden;
+      margin-top: 6px;
+    }
+    .progress > span {
+      display: block;
+      height: 100%;
+      background: var(--gold);
+      transition: width 200ms ease;
+    }
+    .progress.over > span { background: var(--danger); }
+
+    /* =====================================================
+       EVIDENCE LIST
+       ===================================================== */
+    .evidence-list { display: grid; gap: 10px; }
+    .evidence-list li {
+      list-style: none;
+      padding: 12px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: var(--white);
+    }
+    .evidence-list li strong { color: var(--navy); }
+    .evidence-list li a { color: var(--terra-dark); }
+    ul { padding-left: 22px; }
+
+    .small { font-size: 12px; color: var(--muted-soft); }
+
+    /* =====================================================
+       FOOTER
+       ===================================================== */
+    .app-footer {
+      margin-top: 60px;
+      padding-top: 8px;
+      font-size: 13px;
+      color: var(--muted);
+      text-align: center;
+    }
+
+    /* Hide visually but keep for screen readers */
+    .sr-only {
+      position: absolute;
+      width: 1px; height: 1px;
+      padding: 0; margin: -1px;
+      overflow: hidden;
+      clip: rect(0,0,0,0);
+      border: 0;
+    }
+
+    /* PRINT */
+    @media print {
+      .tab-nav, .header-actions, .btn { display: none; }
+      [role="tabpanel"][hidden] { display: block; }
+      .card { break-inside: avoid; box-shadow: none; border: 1px solid #aaa; }
+    }
+  </style>
+</head>
+<body>
+  <a href="#main" class="skip-link">Skip to main content</a>
+
+  <div class="app-shell">
+    <!-- ============================ HEADER ============================ -->
+    <header class="app-header">
+      <div>
+        <p class="eyebrow">Cadence &middot; Hospice Acuity &amp; Staffing</p>
+        <h1>Cadence</h1>
+        <p class="subhead">The rhythm of hospice care, evidence-anchored. Built for supervisors, fed by Epic.</p>
+      </div>
+      <div class="header-actions">
+        <button class="btn btn-secondary btn-small" type="button" id="btn-export-json">Export JSON</button>
+        <button class="btn btn-secondary btn-small" type="button" id="btn-export-csv">Export CSV</button>
+        <label class="btn btn-secondary btn-small" for="import-file" style="cursor:pointer;">
+          Import JSON
+          <input id="import-file" type="file" accept="application/json" class="sr-only">
+        </label>
+        <button class="btn btn-danger btn-small" type="button" id="btn-reset">Reset data</button>
+      </div>
+    </header>
+
+    <!-- ============================ PRIVACY BANNER ============================ -->
+    <div class="privacy-banner" role="note" aria-labelledby="hipaa-heading">
+      <p id="hipaa-heading" style="margin: 0 0 4px; font-weight: 700; font-size: 14px;">HIPAA design note</p>
+      <p style="margin: 0 0 6px;">This tool runs entirely in your browser. It does <strong>not</strong> sit in a HIPAA-compliant environment by itself. To stay compliant, it never asks for and should never receive Protected Health Information.</p>
+      <p style="margin: 0;">When you add a patient, the tool generates a random <strong>private identifier</strong> (example: <code>PT-X7K2-9M</code>). Write that token next to the real patient record in your HIPAA-compliant EHR or chart. Inside this tool, you only see the token. The mapping between token and real patient lives only in your HIPAA environment, never here. Do not enter names, MRNs, dates of birth, addresses, room numbers tied to a known unit, or any other identifier. Visit notes follow the same rule: no PHI.</p>
+    </div>
+
+    <!-- ============================ TAB NAV ============================ -->
+    <nav class="tab-nav" role="tablist" aria-label="Main sections">
+      <button role="tab" id="tab-dashboard" aria-controls="panel-dashboard" aria-selected="true" data-tab="dashboard">Dashboard</button>
+      <button role="tab" id="tab-census" aria-controls="panel-census" aria-selected="false" data-tab="census" tabindex="-1">Daily Census</button>
+      <button role="tab" id="tab-roster" aria-controls="panel-roster" aria-selected="false" data-tab="roster" tabindex="-1">Roster</button>
+      <button role="tab" id="tab-workflow" aria-controls="panel-workflow" aria-selected="false" data-tab="workflow" tabindex="-1">Workflow Buckets</button>
+      <button role="tab" id="tab-assignment" aria-controls="panel-assignment" aria-selected="false" data-tab="assignment" tabindex="-1">Daily Assignment</button>
+      <button role="tab" id="tab-forecast" aria-controls="panel-forecast" aria-selected="false" data-tab="forecast" tabindex="-1">FTE Forecast</button>
+      <button role="tab" id="tab-log" aria-controls="panel-log" aria-selected="false" data-tab="log" tabindex="-1">Visit Log &amp; Learning</button>
+      <button role="tab" id="tab-staff" aria-controls="panel-staff" aria-selected="false" data-tab="staff" tabindex="-1">Staff</button>
+      <button role="tab" id="tab-evidence" aria-controls="panel-evidence" aria-selected="false" data-tab="evidence" tabindex="-1">Evidence</button>
+    </nav>
+
+    <main id="main">
+
+      <!-- ============================ DASHBOARD ============================ -->
+      <section role="tabpanel" id="panel-dashboard" aria-labelledby="tab-dashboard">
+        <p class="usage">Snapshot of today's census, acuity mix, and staffing balance. Add patients in the Roster tab; log visits in the Visit Log to teach the tool how long care actually takes in your program.</p>
+
+        <div class="grid grid-4" aria-live="polite">
+          <div class="card lift">
+            <p class="stat-label">Active census</p>
+            <p class="stat" id="kpi-census">0</p>
+            <p class="stat-sub" id="kpi-census-sub">RHC, IPU, GIP, CHC combined</p>
+          </div>
+          <div class="card lift">
+            <p class="stat-label">Mean acuity</p>
+            <p class="stat" id="kpi-mean-acuity">&mdash;</p>
+            <p class="stat-sub">Scale 1 (low) to 5 (highest)</p>
+          </div>
+          <div class="card lift">
+            <p class="stat-label">High-acuity (T4&ndash;T5)</p>
+            <p class="stat" id="kpi-high">0</p>
+            <p class="stat-sub" id="kpi-high-sub">Unstable / dying / GIP</p>
+          </div>
+          <div class="card lift">
+            <p class="stat-label">RN FTE needed</p>
+            <p class="stat" id="kpi-fte">&mdash;</p>
+            <p class="stat-sub">Based on current census mix</p>
+          </div>
+        </div>
+
+        <div class="grid grid-2" style="margin-top: 18px;">
+          <div class="card">
+            <h3>Tier distribution</h3>
+            <p class="usage" style="margin-top: 4px;">Composite acuity tier blends Palliative Performance Scale, HOPE symptom impact, Phase of Illness, and level of care.</p>
+            <div id="tier-dist" role="img" aria-label="Tier distribution bars"></div>
+          </div>
+          <div class="card">
+            <h3>Today's priority queue</h3>
+            <p class="usage" style="margin-top: 4px;">Patients ranked by who most needs a visit today. Triggers: dying phase, last visit older than tier threshold, recent admission, symptom flag, sole caregiver in crisis.</p>
+            <ol id="priority-list" style="padding-left: 18px; margin: 0;"></ol>
+          </div>
+        </div>
+
+        <div class="card" style="margin-top: 18px;">
+          <button class="alert-toggle" type="button" id="alert-toggle" aria-expanded="false" aria-controls="alert-stack">
+            <span class="alert-toggle-left">
+              <span class="alert-count-pill" id="alert-count">0</span>
+              <span><strong>Alerts</strong> <span class="alert-toggle-hint">Click to view active triggers</span></span>
+            </span>
+            <span class="alert-chevron" aria-hidden="true">&#9656;</span>
+          </button>
+          <div id="alert-stack" aria-live="polite" hidden></div>
+        </div>
+      </section>
+
+      <!-- ============================ CENSUS / DAILY ROLL-CALL ============================ -->
+      <section role="tabpanel" id="panel-census" aria-labelledby="tab-census" hidden>
+        <h2 style="font-size: 22px;">Daily census, cross-check, &amp; shift import</h2>
+        <p class="usage">Supervisor's daily home base. Upload your tokenized Epic shift export to bulk-update patients and auto-mark completed tasks. Use the table to confirm the active list, add new admissions, remove discharges or deaths, and see what's overdue at a glance.</p>
+
+        <div class="card" style="margin: 14px 0 18px; border-left: 4px solid var(--gold);">
+          <h3>Shift import (Epic CSV)</h3>
+          <p class="usage" style="margin-top: 4px;">Run your Epic Reporting Workbench shift handoff report, tokenize the MRN column in your HIPAA environment to <code>PT-XXXX-XX</code>, then upload here. Cadence updates patient state and marks completed tasks. The mapping file stays in your HIPAA system.</p>
+          <div style="display: flex; gap: 10px; flex-wrap: wrap; margin: 12px 0;">
+            <label class="btn btn-gold" for="csv-import" style="cursor: pointer;">
+              Upload shift CSV
+              <input id="csv-import" type="file" accept=".csv" class="sr-only">
+            </label>
+            <button class="btn btn-secondary" type="button" id="btn-csv-template">Download CSV template</button>
+            <button class="btn btn-secondary" type="button" id="btn-csv-help" aria-expanded="false" aria-controls="csv-help">Column map (Epic fields)</button>
+          </div>
+          <div id="csv-import-result" aria-live="polite"></div>
+          <div id="csv-help" hidden style="margin-top: 12px; padding: 12px; background: var(--navy-tint); border-radius: var(--radius);">
+            <p style="margin: 0 0 6px;"><strong>Required:</strong> <code>token</code> (PT-XXXX-XX, already tokenized)</p>
+            <p style="margin: 0 0 6px;"><strong>Patient state columns:</strong> <code>diagnosis</code> (cancer, dementia, heart, lung, neuro, liver, debility, other), <code>pps</code> (10-100), <code>phase</code> (stable, unstable, deteriorating, dying), <code>level_of_care</code> (RHC, CHC, IPU, GIP, RESPITE), <code>admit_date</code> (YYYY-MM-DD), <code>drive_zone</code>, <code>drive_minutes</code>, <code>assigned_to</code> (staff name), <code>last_visit</code></p>
+            <p style="margin: 0 0 6px;"><strong>HOPE symptom columns (0-3):</strong> <code>sx_pain</code>, <code>sx_dyspnea</code>, <code>sx_anxiety</code>, <code>sx_nausea</code>, <code>sx_vomiting</code>, <code>sx_diarrhea</code>, <code>sx_constipation</code>, <code>sx_agitation</code></p>
+            <p style="margin: 0 0 6px;"><strong>Task completion columns (date of last completion, YYYY-MM-DD):</strong> <code>task_rn_visit</code>, <code>task_lvn_visit</code>, <code>task_hha_visit</code>, <code>task_msw_visit</code>, <code>task_chaplain_visit</code>, <code>task_idg_review</code>, <code>task_hope_admission</code>, <code>task_hope_huv1</code>, <code>task_hope_huv2</code>, <code>task_sfv</code>, <code>task_recert_f2f</code>, <code>task_death_visit</code></p>
+            <p style="margin: 0 0 6px;"><strong>Flag columns (true/false or 1/0):</strong> <code>flag_imminent_death</code>, <code>flag_recent_admit</code>, <code>flag_recert_due</code>, <code>flag_sole_caregiver</code>, <code>flag_two_person</code>, <code>flag_wound</code>, <code>flag_iv</code>, <code>flag_complex_family</code>, <code>flag_hospitalization_risk</code></p>
+            <p style="margin: 0;"><strong>Discharge:</strong> include <code>discharge</code> column with any truthy value to remove the patient from the active census.</p>
+          </div>
+        </div>
+
+        <div style="display: flex; gap: 10px; flex-wrap: wrap; margin: 14px 0 18px;">
+          <button class="btn btn-gold" type="button" id="btn-add-patient-census">+ Add patient</button>
+          <button class="btn btn-secondary" type="button" id="btn-mark-all-reviewed">Mark all reviewed today</button>
+          <button class="btn btn-secondary" type="button" id="btn-clear-reviewed">Clear today's reviews</button>
+          <span class="usage" id="census-summary" style="margin-left: auto; align-self: center;"></span>
+        </div>
+
+        <div class="table-wrap">
+          <table>
+            <caption class="sr-only">Daily census cross-check list with last review date and quick actions</caption>
+            <thead>
+              <tr>
+                <th scope="col">Reviewed</th>
+                <th scope="col">Private ID</th>
+                <th scope="col">Dx</th>
+                <th scope="col">Tier</th>
+                <th scope="col">Phase</th>
+                <th scope="col">LoC</th>
+                <th scope="col">Tasks</th>
+                <th scope="col">Zone</th>
+                <th scope="col">Days</th>
+                <th scope="col"><span class="sr-only">Actions</span></th>
+              </tr>
+            </thead>
+            <tbody id="census-body"></tbody>
+          </table>
+        </div>
+
+        <div class="card" style="margin-top: 18px;">
+          <h3>Quick admit (admissions only)</h3>
+          <p class="usage" style="margin-top: 4px;">Generate a private ID and start a stub record. Open the patient in the Roster tab to complete acuity intake.</p>
+          <form id="quick-admit-form" class="form-grid">
+            <div class="field">
+              <label for="qa-id">Private ID</label>
+              <input id="qa-id" type="text" readonly>
+              <span class="hint">Auto-generated. Click Regenerate to roll a new one.</span>
+            </div>
+            <div class="field">
+              <label for="qa-dx">Primary diagnosis</label>
+              <select id="qa-dx"></select>
+            </div>
+            <div class="field">
+              <label for="qa-loc">Level of care</label>
+              <select id="qa-loc"></select>
+            </div>
+            <div class="field" style="align-self: end;">
+              <button class="btn btn-secondary btn-small" type="button" id="qa-regen">Regenerate ID</button>
+            </div>
+            <div style="grid-column: 1 / -1;">
+              <button class="btn btn-gold" type="submit">Admit and open intake</button>
+            </div>
+          </form>
+        </div>
+      </section>
+
+      <!-- ============================ ROSTER ============================ -->
+      <section role="tabpanel" id="panel-roster" aria-labelledby="tab-roster" hidden>
+        <div style="display:flex; justify-content: space-between; align-items: flex-end; flex-wrap: wrap; gap: 12px; margin-bottom: 16px;">
+          <div>
+            <h2 style="font-size: 22px;">Patient roster</h2>
+            <p class="usage">Add each active patient. Acuity recalculates instantly.</p>
+          </div>
+          <button class="btn btn-gold" type="button" id="btn-add-patient">+ Add patient</button>
+        </div>
+
+        <div class="table-wrap">
+          <table>
+            <caption class="sr-only">Patient roster with acuity tier, phase, level of care, and assigned staff</caption>
+            <thead>
+              <tr>
+                <th scope="col">ID</th>
+                <th scope="col">Dx</th>
+                <th scope="col">PPS</th>
+                <th scope="col">Phase</th>
+                <th scope="col">LoC</th>
+                <th scope="col">Sx impact</th>
+                <th scope="col">Tier</th>
+                <th scope="col">Wkly min</th>
+                <th scope="col">Last visit</th>
+                <th scope="col">Assigned</th>
+                <th scope="col"><span class="sr-only">Actions</span></th>
+              </tr>
+            </thead>
+            <tbody id="roster-body">
+              <tr><td colspan="11" style="text-align:center; color: var(--muted-soft); padding: 30px;">No patients yet. Click "Add patient" to begin.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- ============================ WORKFLOW BUCKETS ============================ -->
+      <section role="tabpanel" id="panel-workflow" aria-labelledby="tab-workflow" hidden>
+        <h2 style="font-size: 22px;">Workflow buckets &amp; staff recommendation</h2>
+        <p class="usage">Patients sorted into evidence-anchored acuity levels (Tier I to V). The 2-person bucket pulls anyone flagged as requiring two clinicians regardless of tier (lift assist, complex wound care, terminal extubation, family meeting). The staff recommendation below estimates the minimum clinicians needed today, factoring acuity, level of care, and travel.</p>
+
+        <div class="grid grid-2" style="margin: 14px 0 18px;" aria-live="polite">
+          <div class="card">
+            <h3>Today's staff recommendation</h3>
+            <div id="staff-recommendation"></div>
+          </div>
+          <div class="card">
+            <h3>Drive zone clusters</h3>
+            <p class="usage" style="margin-top:4px;">Grouping by zone reduces drive time. Add a HIPAA-safe zone tag (region name or 3-digit ZIP prefix) to each patient.</p>
+            <div id="zone-clusters"></div>
+          </div>
+        </div>
+
+        <div class="grid grid-3">
+          <div class="card">
+            <h3>High acuity (Tier IV-V)</h3>
+            <p class="usage" style="margin-top: 2px;">Daily RN visit recommended. SIA window if dying. Consider CHC or GIP escalation.</p>
+            <div id="bucket-high"></div>
+          </div>
+          <div class="card">
+            <h3>Moderate acuity (Tier III)</h3>
+            <p class="usage" style="margin-top: 2px;">3 visits per week typical. HOPE Symptom Follow-up if any moderate symptom.</p>
+            <div id="bucket-mod"></div>
+          </div>
+          <div class="card">
+            <h3>Stable / Low (Tier I-II)</h3>
+            <p class="usage" style="margin-top: 2px;">1-2 visits per week. HHA, SW, chaplain continue per IDG plan.</p>
+            <div id="bucket-low"></div>
+          </div>
+        </div>
+
+        <div class="card" style="margin-top: 18px;">
+          <h3>2-person visit bucket</h3>
+          <p class="usage" style="margin-top: 4px;">Any patient flagged as needing two clinicians (regardless of tier). Schedule paired staff and account for double workload minutes.</p>
+          <div id="bucket-twoperson"></div>
+        </div>
+      </section>
+
+      <!-- ============================ ASSIGNMENT ============================ -->
+      <section role="tabpanel" id="panel-assignment" aria-labelledby="tab-assignment" hidden>
+        <h2 style="font-size: 22px;">Daily assignment</h2>
+        <p class="usage">Patients are sorted by today's priority. Use Auto-balance to distribute across staff by weighted minutes, or assign manually from the dropdown on each patient. The progress bar shows staff load against their available direct-care minutes (after travel and indirect time).</p>
+
+        <div style="display:flex; gap: 10px; flex-wrap: wrap; margin: 12px 0 18px;">
+          <button class="btn btn-gold" type="button" id="btn-auto-assign">Auto-balance by acuity</button>
+          <button class="btn btn-secondary" type="button" id="btn-clear-assign">Clear assignments</button>
+        </div>
+
+        <div id="assign-grid" class="grid grid-3"></div>
+
+        <div class="card" style="margin-top: 18px;">
+          <h3>Unassigned patients</h3>
+          <div id="unassigned-list"></div>
+        </div>
+      </section>
+
+      <!-- ============================ FORECAST ============================ -->
+      <section role="tabpanel" id="panel-forecast" aria-labelledby="tab-forecast" hidden>
+        <h2 style="font-size: 22px;">FTE forecast</h2>
+        <p class="usage">Translates current census plus acuity mix into projected weekly workload, then to FTE need by role. Uses your learned visit times where available (n &ge; 5), otherwise evidence-based defaults. Adjust travel and productivity factors in Settings below.</p>
+
+        <div class="grid grid-2">
+          <div class="card">
+            <h3>Workload assumptions</h3>
+            <div class="form-grid">
+              <div class="field">
+                <label for="set-travel">Travel multiplier</label>
+                <input id="set-travel" type="number" step="0.05" min="1.0" max="2.5" value="1.4">
+                <span class="hint">Drive/setup time as a multiple of direct minutes (home hospice).</span>
+              </div>
+              <div class="field">
+                <label for="set-prod">Direct-care productivity</label>
+                <input id="set-prod" type="number" step="0.05" min="0.30" max="0.90" value="0.65">
+                <span class="hint">Fraction of paid hours spent on direct patient care.</span>
+              </div>
+              <div class="field">
+                <label for="set-ipu-ratio">IPU nurse:patient ratio</label>
+                <input id="set-ipu-ratio" type="number" step="0.1" min="1.0" max="8.0" value="1.6">
+                <span class="hint">Patients per RN per shift in inpatient hospice.</span>
+              </div>
+              <div class="field">
+                <label for="set-rn-hours">RN hours per FTE / week</label>
+                <input id="set-rn-hours" type="number" step="1" min="20" max="50" value="40">
+              </div>
+              <div class="field">
+                <label for="set-admit-min">Admission visit minutes</label>
+                <input id="set-admit-min" type="number" step="5" min="30" max="240" value="90">
+              </div>
+              <div class="field">
+                <label for="set-death-min">Death visit minutes</label>
+                <input id="set-death-min" type="number" step="5" min="30" max="240" value="90">
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <h3>Forecast output</h3>
+            <div id="forecast-output"></div>
+          </div>
+        </div>
+
+        <div class="card" style="margin-top: 18px;">
+          <h3>Visit time table (learned vs default)</h3>
+          <p class="usage" style="margin-top:4px;">After 5 logged visits in any cell, the tool prefers the rolling mean over the default. Confidence shows the n.</p>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Tier</th><th>Routine RN visit (min)</th><th>Visits / week</th><th>Source</th><th>n (visits logged)</th></tr></thead>
+              <tbody id="weights-table"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============================ VISIT LOG ============================ -->
+      <section role="tabpanel" id="panel-log" aria-labelledby="tab-log" hidden>
+        <h2 style="font-size: 22px;">Visit log &amp; learning</h2>
+        <p class="usage">Log each completed visit with actual minutes. The tool uses your data to refine its predictions, so the more you log, the better it estimates next week's workload. Privacy: nothing leaves this device unless you export.</p>
+
+        <div class="card">
+          <h3>Log a visit</h3>
+          <form id="log-form" class="form-grid">
+            <div class="field">
+              <label for="log-patient">Patient</label>
+              <select id="log-patient" required></select>
+            </div>
+            <div class="field">
+              <label for="log-staff">Staff</label>
+              <select id="log-staff" required></select>
+            </div>
+            <div class="field">
+              <label for="log-date">Date</label>
+              <input id="log-date" type="date" required>
+            </div>
+            <div class="field">
+              <label for="log-type">Visit type</label>
+              <select id="log-type" required>
+                <option value="routine">Routine RN visit</option>
+                <option value="admission">Admission</option>
+                <option value="recert">Recert</option>
+                <option value="death">Death visit</option>
+                <option value="GIP">GIP shift</option>
+                <option value="CHC">Continuous home care shift</option>
+                <option value="IPU">IPU shift</option>
+                <option value="aide">HHA visit</option>
+                <option value="sw">SW visit</option>
+                <option value="chap">Chaplain visit</option>
+                <option value="lvn">LVN visit</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="log-minutes">Direct minutes</label>
+              <input id="log-minutes" type="number" min="5" max="720" step="5" required>
+            </div>
+            <div class="field">
+              <label for="log-travel">Travel minutes</label>
+              <input id="log-travel" type="number" min="0" max="240" step="5" value="0">
+            </div>
+            <div class="field" style="grid-column: 1 / -1;">
+              <label for="log-notes">Notes (no PHI)</label>
+              <input id="log-notes" type="text" placeholder="e.g., symptom escalation, family meeting, fall">
+            </div>
+            <div style="grid-column: 1 / -1;">
+              <button class="btn btn-gold" type="submit">Log visit</button>
+            </div>
+          </form>
+        </div>
+
+        <div class="card" style="margin-top: 16px;">
+          <h3>Recent visits</h3>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Date</th><th>Patient</th><th>Staff</th><th>Type</th><th>Tier at visit</th><th>Direct min</th><th>Travel min</th><th></th></tr></thead>
+              <tbody id="log-body"><tr><td colspan="8" style="text-align:center; color: var(--muted-soft); padding: 20px;">No visits logged yet.</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============================ STAFF ============================ -->
+      <section role="tabpanel" id="panel-staff" aria-labelledby="tab-staff" hidden>
+        <div style="display:flex; justify-content: space-between; align-items: flex-end; flex-wrap: wrap; gap: 12px; margin-bottom: 16px;">
+          <div>
+            <h2 style="font-size: 22px;">Staff roster</h2>
+            <p class="usage">Add every clinician who may work a shift: RNs, LVNs, hospice aides (CNA), MSWs, chaplains, NP/PA, and physicians. Toggle on-shift for today; only on-shift staff appear in assignment dropdowns and auto-balance. Staff names are not PHI and can be entered as-is.</p>
+          </div>
+          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+            <button class="btn btn-secondary btn-small" type="button" id="btn-all-on-shift">All on shift</button>
+            <button class="btn btn-secondary btn-small" type="button" id="btn-none-on-shift">None on shift</button>
+            <button class="btn btn-gold" type="button" id="btn-add-staff">+ Add staff</button>
+          </div>
+        </div>
+
+        <p class="usage" id="staff-summary"></p>
+
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>On shift</th><th>Name</th><th>Role</th><th>FTE (hrs/wk)</th><th>Productivity</th><th>Caseload target</th><th>Home zone</th><th></th></tr></thead>
+            <tbody id="staff-body"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- ============================ EVIDENCE ============================ -->
+      <section role="tabpanel" id="panel-evidence" aria-labelledby="tab-evidence" hidden>
+        <h2 style="font-size: 22px;">Evidence base</h2>
+        <p class="usage">Every weighting and threshold in this tool maps to a validated instrument or published benchmark. Citations below.</p>
+
+        <h3 style="margin-top: 18px;">Acuity instruments</h3>
+        <ul class="evidence-list">
+          <li><strong>HOPE (Hospice Outcomes &amp; Patient Evaluation):</strong> CMS-mandated assessment effective October 1, 2025. Replaces HIS. Captures 8 symptom-impact items (pain, dyspnea, anxiety, nausea, vomiting, diarrhea, constipation, agitation) on a 0&ndash;3 scale at admission and HOPE Update Visits (HUVs) days 6&ndash;15 and 16&ndash;30. Any moderate or severe symptom triggers a Symptom Follow-up Visit within 2 calendar days. <a href="https://www.cms.gov/medicare/quality/hospice/hope" target="_blank" rel="noopener">CMS HOPE</a></li>
+          <li><strong>Palliative Performance Scale (PPS):</strong> Validated 11-point scale (0%&ndash;100%) developed by Victoria Hospice Society. Strong correlation with survival (r &asymp; 0.77 with PPSv2). PPS &le; 50% is hospice-eligible for most non-cancer diagnoses; &le; 70% for oncology. Originally designed for "analysis of home nursing care workload." <a href="https://eprognosis.ucsf.edu/pps.php?p=hospice" target="_blank" rel="noopener">ePrognosis</a></li>
+          <li><strong>IPOS (Integrated Palliative care Outcome Scale):</strong> 17-item validated multidimensional scale. Internal consistency &alpha; = 0.77. Higher scores in patients with unstable or deteriorating Phase of Illness vs stable. <a href="https://pubmed.ncbi.nlm.nih.gov/31185804/" target="_blank" rel="noopener">Sterie 2019</a></li>
+          <li><strong>ESAS-r (Edmonton Symptom Assessment System Revised):</strong> 10-item patient-reported, 0&ndash;10 intensity. Daily completion recommended in hospice and tertiary palliative units. <a href="https://www.albertahealthservices.ca/assets/info/peolc/if-peolc-ed-esasr-admin-manual.pdf" target="_blank" rel="noopener">AHS manual</a></li>
+          <li><strong>Phase of Illness:</strong> 5-phase clinical state (Stable, Unstable, Deteriorating, Dying, Deceased) developed for AN-SNAP palliative casemix in Australia. Inter-rater reliability validated (Masso 2015). Drives case-mix funding and is the strongest single non-functional predictor of care needs. <a href="https://pmc.ncbi.nlm.nih.gov/articles/PMC5788082/" target="_blank" rel="noopener">PoI cross-sectional</a></li>
+          <li><strong>AN-SNAP v5 (Australian National Subacute and Non-Acute Patient Classification):</strong> Combines care type, Phase of Illness, functional impairment, and age into casemix groups. The international reference for palliative-care workload classification. <a href="https://www.ihacpa.gov.au/resources/australian-national-subacute-and-non-acute-patient-classification-version-50" target="_blank" rel="noopener">IHACPA</a></li>
+        </ul>
+
+        <h3 style="margin-top: 18px;">Staffing standards</h3>
+        <ul class="evidence-list">
+          <li><strong>NHPCO Hospice Staffing Framework (March 2024):</strong> Declines to set a single caseload number. Recommends individualized adjustment using organizational variables and outcome measures. <a href="https://allianceforcareathome.org/wp-content/uploads/NHPCO_Hospice_Staffing_Framework.pdf" target="_blank" rel="noopener">NHPCO PDF</a></li>
+          <li><strong>Home hospice RN case manager caseload:</strong> Industry benchmark 12&ndash;14 patients per RN case manager (Multi-View Benchmarking). Default in this tool: 13. Industry reality: 16&ndash;24 not uncommon (associated with burnout and quality drift). <a href="https://mvib.net/CaseloadExpectations.htm" target="_blank" rel="noopener">Multi-View</a></li>
+          <li><strong>Inpatient hospice RN ratio:</strong> Federal minimum is one nurse per 8 patients with at least 2 direct-care staff per shift and at least one RN providing direct care when any GIP patient is present. IAHPC recommended optimum: 1 RN per 1.5&ndash;1.7 patients over 24 hours. Default in this tool: 1:1.6. <a href="https://iahpc.org/resources/publications/getting-started/human-resources/" target="_blank" rel="noopener">IAHPC</a></li>
+          <li><strong>42 CFR &sect; 418.64 (Conditions of Participation, Core Services):</strong> Hospice must provide nursing, medical social services, counseling, and physician services routinely and substantially through hospice employees. Contracted staff allowed for surge and short-term gaps. <a href="https://www.ecfr.gov/current/title-42/chapter-IV/subchapter-B/part-418/subpart-C/subject-group-ECFR35b48a647589673/section-418.64" target="_blank" rel="noopener">eCFR 418.64</a></li>
+          <li><strong>Continuous Home Care (CHC):</strong> Minimum 8 hours direct care in 24h, of which &gt; 50% must be nursing (RN/LVN). 4 hours nursing + 4 hours aide is the floor. <a href="https://www.mypcnow.org/fast-fact/ff-507-hospice-continuous-home-care/" target="_blank" rel="noopener">PCNOW FF #507</a></li>
+          <li><strong>Service Intensity Add-On (SIA):</strong> Last 7 days of life, in 15-minute units up to 4 hours per day, paid at the CHC hourly rate for RN/MSW visits. Cumulative mean increase of 15.7 minutes per beneficiary in the last 7 days post-implementation. <a href="https://pubmed.ncbi.nlm.nih.gov/28622481/" target="_blank" rel="noopener">Cagle 2017</a></li>
+        </ul>
+
+        <h3 style="margin-top: 18px;">Visit-time defaults seeded into the tool</h3>
+        <ul class="evidence-list">
+          <li>RHC RN routine visit average <strong>45&ndash;60 minutes</strong> (CMS family experience benchmark: "4&ndash;5 visits per week, about an hour each"). Tier-weighted in this tool from 45 (T1) to 75 (T5). <a href="https://www.medbridge.com/blog/how-to-use-the-palliative-performance-scale-in-home-health-care" target="_blank" rel="noopener">Medbridge</a></li>
+          <li>RN admission visit: 60&ndash;120 minutes typical. Default 90.</li>
+          <li>Death visit / pronouncement: 60&ndash;90 minutes. Default 90.</li>
+          <li>Recert visit: +30 minutes added to routine visit time.</li>
+          <li>IDG / documentation: ~10 minutes per patient per week of indirect time (built into productivity factor).</li>
+          <li>Travel: 1.3&ndash;1.5x multiplier on direct minutes for home hospice (default 1.4). Urban programs trend lower, rural higher.</li>
+        </ul>
+
+        <h3 style="margin-top: 18px;">Acuity numbering system (Tier I to V)</h3>
+        <ul class="evidence-list">
+          <li><strong>Tier I (Stable):</strong> PPS 60 to 100, Phase Stable, all symptoms 0 or 1. Routine visit cadence 1 per week.</li>
+          <li><strong>Tier II (Watchful):</strong> PPS 50 to 60, Stable to Deteriorating, mild to moderate symptom. 2 visits per week.</li>
+          <li><strong>Tier III (Active):</strong> PPS 40, Deteriorating, moderate symptom impact. Triggers HOPE Symptom Follow-up. 3 visits per week.</li>
+          <li><strong>Tier IV (Crisis-risk):</strong> PPS 20 to 30, Unstable phase, or any severe symptom. 4 to 5 visits per week. Consider CHC.</li>
+          <li><strong>Tier V (Dying / Maximum support):</strong> PPS at or below 20, Dying phase, or on GIP. Daily visits, SIA window applies, 2-person tasks common.</li>
+        </ul>
+
+        <h3 style="margin-top: 18px;">HIPAA-compliant design</h3>
+        <ul class="evidence-list">
+          <li>This tool stores data <strong>locally on the device only</strong>. It is not, by itself, a HIPAA-compliant environment. Compliance is achieved by keeping all Protected Health Information out of the tool.</li>
+          <li>The tool generates a random opaque <strong>private identifier</strong> (e.g., <code>PT-X7K2-9M</code>) for each patient. The mapping between that token and the real patient must live only in your HIPAA-compliant EHR or chart. Inside this tool, only the token is visible.</li>
+          <li>Drive zones must be regional tags or 3-digit ZIP prefixes. Per HIPAA Safe Harbor (45 CFR 164.514(b)(2)), the first 3 digits of a ZIP code are de-identified only when the combined population of that ZIP3 region exceeds 20,000. Full 5-digit ZIPs and street addresses are PHI and must not be entered.</li>
+          <li>Staff names are not PHI for patient privacy purposes and can be entered as displayed (e.g., "Maria S., RN").</li>
+          <li>Export files (JSON, CSV) contain whatever is in this tool. They are still safe to back up to a HIPAA-compliant location and unsafe to share with anyone who lacks the mapping file. Treat them as deidentified per HIPAA Safe Harbor when only tokens and clinical data are present.</li>
+        </ul>
+
+        <h3 style="margin-top: 18px;">Composite acuity formula</h3>
+        <p>Acuity = 0.20 &times; PPS_inverted + 0.30 &times; Symptom_impact + 0.20 &times; Phase + 0.20 &times; Level_of_care + 0.10 &times; Psychosocial. Tier = ceil(score / 20), bounded 1&ndash;5. Weights are editable in the tool's settings once you have enough logged data to justify a change.</p>
+
+        <p class="usage" style="margin-top: 18px;">This tool supports clinical judgment. It does not replace it. Acuity scoring is a starting point for case conferences, not a substitute for a clinician assessing a patient.</p>
+      </section>
+
+    </main>
+
+    <footer class="app-footer">
+      <p>Cadence &middot; Hospice acuity &amp; staffing &middot; Dr. Sharilyn Rennie</p>
+      <p class="small">Decision-support only. Not a substitute for licensed clinical assessment, organizational policy, or regulatory compliance review.</p>
+    </footer>
+  </div>
+
+  <!-- ============================ MODAL ============================ -->
+  <div class="modal-backdrop" id="modal" hidden role="dialog" aria-modal="true" aria-labelledby="modal-title">
+    <div class="modal">
+      <div class="modal-header">
+        <div>
+          <p class="eyebrow" id="modal-eyebrow">Add patient</p>
+          <h2 id="modal-title" style="font-size: 22px; color: var(--navy);">New patient</h2>
+        </div>
+        <button class="modal-close" type="button" aria-label="Close" id="modal-close">&times;</button>
+      </div>
+      <div id="modal-body"></div>
+    </div>
+  </div>
+
+  <!-- ============================ SCRIPT ============================ -->
+  <script>
+  (function() {
+    'use strict';
+
+    /* =====================================================
+       CONSTANTS
+       ===================================================== */
+    const STORAGE_KEY = 'cadence_v1';
+    const SYMPTOMS = [
+      { key: 'pain',         label: 'Pain' },
+      { key: 'dyspnea',      label: 'Shortness of breath' },
+      { key: 'anxiety',      label: 'Anxiety' },
+      { key: 'nausea',       label: 'Nausea' },
+      { key: 'vomiting',     label: 'Vomiting' },
+      { key: 'diarrhea',     label: 'Diarrhea' },
+      { key: 'constipation', label: 'Constipation' },
+      { key: 'agitation',    label: 'Agitation' }
+    ];
+    const SYMPTOM_LABELS = ['0 None', '1 Mild', '2 Mod', '3 Severe'];
+
+    const PHASES = [
+      { key: 'stable',        label: 'Stable',        factor: 1 },
+      { key: 'unstable',      label: 'Unstable',      factor: 4 },
+      { key: 'deteriorating', label: 'Deteriorating', factor: 3 },
+      { key: 'dying',         label: 'Dying',         factor: 5 }
+    ];
+
+    const LEVELS = [
+      { key: 'RHC',     label: 'Routine home care', factor: 1, setting: 'home' },
+      { key: 'CHC',     label: 'Continuous home care', factor: 4, setting: 'home' },
+      { key: 'RESPITE', label: 'Respite', factor: 2, setting: 'inpatient' },
+      { key: 'IPU',     label: 'IPU (general)', factor: 3, setting: 'inpatient' },
+      { key: 'GIP',     label: 'General inpatient (GIP)', factor: 5, setting: 'inpatient' }
+    ];
+
+    const DIAGNOSES = [
+      { key: 'cancer',   label: 'Cancer' },
+      { key: 'dementia', label: 'Dementia / Alzheimer' },
+      { key: 'heart',    label: 'Heart disease / CHF' },
+      { key: 'lung',     label: 'Lung disease / COPD' },
+      { key: 'neuro',    label: 'Neurologic (ALS, Parkinson, stroke)' },
+      { key: 'liver',    label: 'Liver / renal' },
+      { key: 'debility', label: 'Adult failure to thrive / debility' },
+      { key: 'other',    label: 'Other' }
+    ];
+
+    const FLAGS = [
+      { key: 'recentAdmit',          label: 'New admit (last 7 days)' },
+      { key: 'recertDue',            label: 'Recert due within 7 days' },
+      { key: 'deathImminent',        label: 'Death likely in last 7 days' },
+      { key: 'soleCaregiver',        label: 'Sole caregiver stressed' },
+      { key: 'spiritualDistress',    label: 'Active spiritual distress' },
+      { key: 'complexFamily',        label: 'Complex family dynamics' },
+      { key: 'hospitalizationRisk',  label: 'High ED/hospital risk' },
+      { key: 'foodInsecurity',       label: 'Food / housing insecurity' },
+      { key: 'pediatric',            label: 'Pediatric patient' },
+      { key: 'twoPersonVisit',       label: 'Requires 2-person visit (lift, wound, family meeting)' },
+      { key: 'woundCare',            label: 'Complex wound care' },
+      { key: 'iv',                   label: 'IV/SQ infusion or pump' }
+    ];
+
+    // Evidence-anchored acuity scale (T1-T5 / Level I-V)
+    const TIER_DESCRIPTORS = {
+      1: { roman: 'I',   name: 'Stable',        bucket: 'low',  anchor: 'PPS 60-100, Phase Stable, sx ≤ 1. Routine visits.' },
+      2: { roman: 'II',  name: 'Watchful',      bucket: 'low',  anchor: 'PPS 50-60, mild-mod sx, near-stable phase.' },
+      3: { roman: 'III', name: 'Active',        bucket: 'mod',  anchor: 'PPS 40, moderate sx (HOPE SFV trigger), deteriorating.' },
+      4: { roman: 'IV',  name: 'Crisis-risk',   bucket: 'high', anchor: 'PPS 20-30, severe sx OR unstable phase. CHC consider.' },
+      5: { roman: 'V',   name: 'Dying / Max',   bucket: 'high', anchor: 'PPS ≤ 20 OR Dying phase OR GIP. SIA window.' }
+    };
+
+    const ROLES = [
+      { key: 'RN',    label: 'RN (case manager)' },
+      { key: 'LVN',   label: 'LVN / LPN' },
+      { key: 'HHA',   label: 'Hospice aide / CNA' },
+      { key: 'SW',    label: 'Medical social worker' },
+      { key: 'CHAP',  label: 'Chaplain' },
+      { key: 'APP',   label: 'NP / PA' },
+      { key: 'MD',    label: 'Physician' }
+    ];
+
+    // Default visit-time table (minutes per routine visit, by tier)
+    const DEFAULT_VISIT_MIN = { 1: 45, 2: 50, 3: 55, 4: 60, 5: 75 };
+    const DEFAULT_VISITS_PER_WEEK = { 1: 1, 2: 2, 3: 3, 4: 4, 5: 6 };
+
+    // Evidence-anchored task catalog. tierCadenceDays = max allowed days
+    // between completions, indexed by acuity tier. triggers = patient-state
+    // conditions that activate the task.
+    const TASK_TYPES = [
+      { key: 'rn_visit',       label: 'RN visit',                    tierCadenceDays: { 1: 7,  2: 5,  3: 3,  4: 2,  5: 1 }, anchor: 'CMS Hospice Care Index; 42 CFR 418.64; HOPE SFV' },
+      { key: 'lvn_visit',      label: 'LVN visit',                   tierCadenceDays: { 1: 14, 2: 10, 3: 7,  4: 5,  5: 3 }, anchor: 'Supplemental nursing per plan of care' },
+      { key: 'hha_visit',      label: 'Hospice aide visit',          tierCadenceDays: { 1: 7,  2: 4,  3: 3,  4: 2,  5: 1 }, anchor: '42 CFR 418.64; aide plan of care' },
+      { key: 'msw_visit',      label: 'MSW visit',                   tierCadenceDays: { 1: 30, 2: 21, 3: 14, 4: 7,  5: 7 }, anchor: '42 CFR 418.64 medical social services' },
+      { key: 'chaplain_visit', label: 'Chaplain visit',              tierCadenceDays: { 1: 30, 2: 21, 3: 14, 4: 7,  5: 7 }, anchor: '42 CFR 418.64 spiritual counseling' },
+      { key: 'idg_review',     label: 'IDG plan-of-care review',     tierCadenceDays: { 1: 15, 2: 15, 3: 15, 4: 15, 5: 15 }, anchor: '42 CFR 418.56 IDG every 15 days' },
+      { key: 'hope_admission', label: 'HOPE admission assessment',   triggerByDays: { from: 0, to: 5 },   onceOnly: true,  anchor: 'CMS HOPE: admission timepoint' },
+      { key: 'hope_huv1',      label: 'HOPE Update Visit 1',         triggerByDays: { from: 6, to: 15 },  onceOnly: true,  anchor: 'CMS HOPE: HUV1 day 6-15' },
+      { key: 'hope_huv2',      label: 'HOPE Update Visit 2',         triggerByDays: { from: 16, to: 30 }, onceOnly: true,  anchor: 'CMS HOPE: HUV2 day 16-30' },
+      { key: 'sfv',            label: 'Symptom Follow-up (SFV)',     triggeredBy: 'moderateOrSevereSx',  dueWithinDays: 2, anchor: 'CMS HOPE: in-person SFV within 2 calendar days of moderate/severe rating' },
+      { key: 'recert_f2f',     label: 'Recert F2F encounter',        triggeredBy: 'recertDue',           dueWithinDays: 7, anchor: 'CMS hospice recert requirements' },
+      { key: 'death_visit',    label: 'Death / pronouncement visit', triggeredBy: 'deathImminent',                          anchor: 'SIA window; bereavement protocol' }
+    ];
+
+    function tierFor(p) { return acuityTier(acuityScore(p)); }
+
+    function daysBetween(a, b) {
+      if (!a || !b) return null;
+      return Math.floor((new Date(b) - new Date(a)) / 86400000);
+    }
+
+    function patientStateMatches(p, trigger) {
+      if (trigger === 'moderateOrSevereSx') {
+        return SYMPTOMS.some(s => (p.symptoms?.[s.key] || 0) >= 2);
+      }
+      if (trigger === 'recertDue')    return !!p.flags?.recertDue;
+      if (trigger === 'deathImminent') return !!p.flags?.deathImminent;
+      if (trigger === 'recentAdmit')  return !!p.flags?.recentAdmit;
+      return false;
+    }
+
+    // Compute per-task status for a patient as of "today".
+    function computeTasks(p, todayISOStr) {
+      const today = todayISOStr || todayISO();
+      const t = tierFor(p);
+      const admit = p.admitDate || p.createdAt?.slice(0, 10) || today;
+      const dayNo = daysBetween(admit, today);
+      const tc = p.taskCompletion || {};
+      return TASK_TYPES.map(def => {
+        const last = tc[def.key]?.lastDate || '';
+        const result = {
+          key: def.key,
+          label: def.label,
+          anchor: def.anchor,
+          lastDate: last,
+          dueDate: '',
+          overdueDays: 0,
+          active: false,
+          completedRecently: false,
+          source: tc[def.key]?.source || ''
+        };
+
+        if (def.tierCadenceDays) {
+          const cadence = def.tierCadenceDays[t];
+          result.active = true;
+          if (last) {
+            const since = daysBetween(last, today);
+            result.overdueDays = since - cadence;
+            const dueDt = new Date(last);
+            dueDt.setDate(dueDt.getDate() + cadence);
+            result.dueDate = dueDt.toISOString().slice(0, 10);
+            result.completedRecently = since <= cadence;
+          } else {
+            // never completed; overdue by the admission age beyond cadence
+            result.overdueDays = Math.max(0, dayNo - cadence);
+            const dueDt = new Date(admit);
+            dueDt.setDate(dueDt.getDate() + cadence);
+            result.dueDate = dueDt.toISOString().slice(0, 10);
+          }
+        } else if (def.triggerByDays) {
+          const inWindow = dayNo >= def.triggerByDays.from && dayNo <= def.triggerByDays.to;
+          const past = dayNo > def.triggerByDays.to;
+          result.active = inWindow || (past && !last);
+          if (last && def.onceOnly) result.completedRecently = true;
+          if (!last) {
+            result.dueDate = new Date(new Date(admit).getTime() + def.triggerByDays.to * 86400000).toISOString().slice(0, 10);
+            result.overdueDays = past ? (dayNo - def.triggerByDays.to) : 0;
+          }
+        } else if (def.triggeredBy) {
+          const trig = patientStateMatches(p, def.triggeredBy);
+          result.active = trig;
+          if (trig && def.dueWithinDays != null) {
+            if (last) {
+              const since = daysBetween(last, today);
+              result.completedRecently = since <= def.dueWithinDays;
+              result.overdueDays = since - def.dueWithinDays;
+            } else {
+              result.overdueDays = 0; // newly triggered today
+              result.dueDate = new Date(new Date(today).getTime() + def.dueWithinDays * 86400000).toISOString().slice(0, 10);
+            }
+          } else if (trig && last) {
+            result.completedRecently = true;
+          }
+        }
+        return result;
+      });
+    }
+
+    function overdueTaskCount(p) {
+      return computeTasks(p).filter(t => t.active && t.overdueDays > 0 && !t.completedRecently).length;
+    }
+
+    // Acuity weighting (composite formula)
+    const ACUITY_WEIGHTS = {
+      pps: 0.20,
+      symptoms: 0.30,
+      phase: 0.20,
+      loc: 0.20,
+      psychosocial: 0.10
+    };
+
+    /* =====================================================
+       STATE
+       ===================================================== */
+    let state = {
+      patients: [],
+      staff: [],
+      visits: [],
+      settings: {
+        travelMultiplier: 1.4,
+        productivity: 0.65,
+        ipuRatio: 1.6,
+        rnHoursWeek: 40,
+        admitMinutes: 90,
+        deathMinutes: 90,
+        recertExtra: 30
+      },
+      version: 1
+    };
+
+    function load() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          state = Object.assign(state, parsed);
+        }
+      } catch (e) {
+        console.warn('Could not load saved data:', e);
+      }
+    }
+
+    function save() {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+      } catch (e) {
+        console.warn('Could not save:', e);
+      }
+    }
+
+    function uid() {
+      return 'p_' + Math.random().toString(36).slice(2, 9) + Date.now().toString(36).slice(-4);
+    }
+
+    // Random opaque private identifier for the patient-facing label.
+    // Form: PT-XXXX-XX (uses unambiguous chars, no I/O/0/1).
+    function generatePrivateId() {
+      const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+      const pick = (n) => Array.from({length:n}, () => chars[Math.floor(Math.random()*chars.length)]).join('');
+      const candidate = `PT-${pick(4)}-${pick(2)}`;
+      // Avoid collision with existing patients
+      const exists = (state.patients || []).some(p => p.label === candidate);
+      return exists ? generatePrivateId() : candidate;
+    }
+
+    // Heuristic PHI guard: returns a warning string if the label looks like a name, MRN, or identifier.
+    function phiWarning(s) {
+      if (!s) return '';
+      const v = s.trim();
+      if (/\s/.test(v)) return 'Looks like it may contain spaces (a name?). Use a token instead.';
+      if (/\d{6,}/.test(v)) return 'Long number sequence (MRN/DOB?). Avoid identifiers.';
+      if (/\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}/.test(v)) return 'Looks like a date. Avoid identifiers.';
+      if (/[a-z]{4,}/.test(v) && !/^PT-/i.test(v)) return 'Looks like a word (a name?). Prefer the auto-generated PT-XXXX-XX token.';
+      return '';
+    }
+
+    /* =====================================================
+       ACUITY CALCULATIONS
+       ===================================================== */
+    function ppsFactor(pps) {
+      // PPS 100 -> 0; PPS 0 -> 100 (inverted)
+      if (pps == null) return 50;
+      return Math.max(0, Math.min(100, 100 - pps));
+    }
+
+    function symptomFactor(symptoms) {
+      // Sum of 8 symptoms (0-3 each), max 24, normalized to 0-100
+      // Plus a boost if any single symptom is severe (3): adds 15
+      // Plus a boost if any single symptom is moderate (2): adds 8
+      if (!symptoms) return 0;
+      let sum = 0;
+      let hasSevere = false;
+      let hasModerate = false;
+      SYMPTOMS.forEach(s => {
+        const v = Number(symptoms[s.key] || 0);
+        sum += v;
+        if (v >= 3) hasSevere = true;
+        else if (v >= 2) hasModerate = true;
+      });
+      let factor = (sum / 24) * 100; // 0-100 baseline
+      if (hasSevere) factor = Math.min(100, factor + 15);
+      else if (hasModerate) factor = Math.min(100, factor + 8);
+      return factor;
+    }
+
+    function phaseFactor(phase) {
+      const p = PHASES.find(x => x.key === phase);
+      return p ? (p.factor / 5) * 100 : 20;
+    }
+
+    function locFactor(loc) {
+      const l = LEVELS.find(x => x.key === loc);
+      return l ? (l.factor / 5) * 100 : 20;
+    }
+
+    function psychosocialFactor(flags) {
+      if (!flags) return 0;
+      let count = 0;
+      ['soleCaregiver','spiritualDistress','complexFamily','hospitalizationRisk','foodInsecurity','pediatric'].forEach(k => {
+        if (flags[k]) count++;
+      });
+      return Math.min(100, count * 18);
+    }
+
+    function eventBoost(flags) {
+      // Recent admission, recert, imminent death push priority urgency
+      if (!flags) return 0;
+      let boost = 0;
+      if (flags.recentAdmit) boost += 6;
+      if (flags.deathImminent) boost += 15;
+      if (flags.recertDue) boost += 4;
+      return boost;
+    }
+
+    function acuityScore(p) {
+      const raw =
+        ACUITY_WEIGHTS.pps * ppsFactor(p.pps) +
+        ACUITY_WEIGHTS.symptoms * symptomFactor(p.symptoms) +
+        ACUITY_WEIGHTS.phase * phaseFactor(p.phase) +
+        ACUITY_WEIGHTS.loc * locFactor(p.levelOfCare) +
+        ACUITY_WEIGHTS.psychosocial * psychosocialFactor(p.flags);
+      return Math.round(raw + eventBoost(p.flags));
+    }
+
+    function acuityTier(score) {
+      if (score >= 75) return 5;
+      if (score >= 60) return 4;
+      if (score >= 45) return 3;
+      if (score >= 25) return 2;
+      return 1;
+    }
+
+    /* =====================================================
+       LEARNED VISIT TIMES
+       ===================================================== */
+    function learnedVisitMinutes(tier, visitType) {
+      const matching = state.visits.filter(v =>
+        v.tierAtVisit === tier && v.visitType === visitType && v.directMinutes > 0
+      );
+      if (matching.length < 5) return null;
+      const sum = matching.reduce((a, v) => a + v.directMinutes, 0);
+      return { mean: Math.round(sum / matching.length), n: matching.length };
+    }
+
+    function effectiveVisitMinutes(tier, visitType) {
+      visitType = visitType || 'routine';
+      const learned = learnedVisitMinutes(tier, visitType);
+      if (learned) return { minutes: learned.mean, source: 'learned', n: learned.n };
+      const baseline = visitType === 'routine' ? DEFAULT_VISIT_MIN[tier] : null;
+      if (baseline != null) return { minutes: baseline, source: 'default', n: 0 };
+      // Fallback for non-routine types: use settings
+      const fallbacks = {
+        admission: state.settings.admitMinutes,
+        recert: DEFAULT_VISIT_MIN[tier] + state.settings.recertExtra,
+        death: state.settings.deathMinutes
+      };
+      return { minutes: fallbacks[visitType] || DEFAULT_VISIT_MIN[tier] || 45, source: 'default', n: 0 };
+    }
+
+    function weeklyMinutesForPatient(p) {
+      const score = acuityScore(p);
+      const tier = acuityTier(score);
+      // For inpatient levels, project as nursing hours per patient day
+      if (p.levelOfCare === 'GIP') return Math.round(24 * 60 * 7 / 1.0); // 1:1 high intensity 24/7
+      if (p.levelOfCare === 'IPU' || p.levelOfCare === 'RESPITE') {
+        return Math.round(24 * 60 * 7 / state.settings.ipuRatio);
+      }
+      if (p.levelOfCare === 'CHC') return 8 * 60 * 7; // 8h/day floor
+      // Home hospice (RHC)
+      const vmin = effectiveVisitMinutes(tier, 'routine').minutes;
+      const visitsPerWeek = DEFAULT_VISITS_PER_WEEK[tier];
+      // Travel: prefer explicit drive minutes if present, else apply travel multiplier
+      const directWeekly = vmin * visitsPerWeek;
+      const travelWeekly = p.driveMinutes
+        ? (p.driveMinutes * 2 * visitsPerWeek) // round-trip * visits
+        : (directWeekly * (state.settings.travelMultiplier - 1));
+      let total = directWeekly + travelWeekly;
+      // Double-count for 2-person visits
+      if (p.flags && p.flags.twoPersonVisit) total *= 2;
+      // Add admit time amortized over 1 week if recent admit
+      if (p.flags && p.flags.recentAdmit) total += state.settings.admitMinutes;
+      // Add SIA-style boost in last 7 days
+      if (p.flags && p.flags.deathImminent) total += 60;
+      return Math.round(total);
+    }
+
+    function priorityScore(p) {
+      // Combine acuity + days since last visit + overdue tasks + event boosts
+      let score = acuityScore(p);
+      const tier = acuityTier(score);
+      const expectedInterval = 7 / (DEFAULT_VISITS_PER_WEEK[tier] || 1);
+      if (p.lastVisit) {
+        const days = (new Date() - new Date(p.lastVisit)) / 86400000;
+        const overdue = days - expectedInterval;
+        if (overdue > 0) score += Math.min(30, overdue * 6);
+      } else {
+        score += 8; // never visited
+      }
+      // Each overdue task adds urgency (capped to avoid runaway scores)
+      try {
+        const overdueTasks = overdueTaskCount(p);
+        score += Math.min(20, overdueTasks * 5);
+      } catch (e) {}
+      return Math.round(score);
+    }
+
+    /* =====================================================
+       RENDER: DASHBOARD
+       ===================================================== */
+    function renderDashboard() {
+      const census = state.patients.length;
+      document.getElementById('kpi-census').textContent = census;
+
+      const tiers = [0, 0, 0, 0, 0, 0]; // index 1-5
+      const acuitySum = state.patients.reduce((acc, p) => {
+        const t = acuityTier(acuityScore(p));
+        tiers[t]++;
+        return acc + t;
+      }, 0);
+
+      const mean = census ? (acuitySum / census).toFixed(1) : '';
+      document.getElementById('kpi-mean-acuity').textContent = mean;
+      const high = tiers[4] + tiers[5];
+      document.getElementById('kpi-high').textContent = high;
+      document.getElementById('kpi-high-sub').textContent = `T4: ${tiers[4]} · T5: ${tiers[5]}`;
+
+      // FTE need
+      document.getElementById('kpi-fte').textContent = computeRNFTE().toFixed(1);
+
+      // Tier dist bars
+      const distHost = document.getElementById('tier-dist');
+      distHost.innerHTML = '';
+      [1,2,3,4,5].forEach(t => {
+        const count = tiers[t];
+        const pct = census ? (count / census) * 100 : 0;
+        const row = document.createElement('div');
+        row.style.cssText = 'display:flex; align-items:center; gap:10px; margin: 6px 0;';
+        row.innerHTML = `
+          <span class="pill t${t}" style="min-width: 36px; justify-content: center;">T${t}</span>
+          <div class="progress" style="flex:1;"><span style="width: ${pct}%;"></span></div>
+          <span class="small" style="min-width: 60px; text-align: right;">${count} (${pct.toFixed(0)}%)</span>
+        `;
+        distHost.appendChild(row);
+      });
+
+      // Priority queue
+      const queue = state.patients
+        .map(p => ({ p, prio: priorityScore(p) }))
+        .sort((a,b) => b.prio - a.prio)
+        .slice(0, 10);
+      const list = document.getElementById('priority-list');
+      list.innerHTML = '';
+      if (queue.length === 0) {
+        list.innerHTML = '<li class="small" style="color: var(--muted-soft); list-style: none; margin-left: -18px;">Add patients to see priorities.</li>';
+      } else {
+        queue.forEach(({ p, prio }) => {
+          const t = acuityTier(acuityScore(p));
+          const li = document.createElement('li');
+          li.style.cssText = 'margin: 6px 0;';
+          li.innerHTML = `<strong>${escapeHtml(p.label)}</strong> · <span class="pill t${t}">T${t}</span> · <span class="small">priority ${prio}</span>`;
+          list.appendChild(li);
+        });
+      }
+
+      // Alerts
+      const alerts = [];
+      state.patients.forEach(p => {
+        if (p.flags && p.flags.deathImminent) {
+          alerts.push({ type: 'danger', msg: `${p.label}: imminent dying phase flagged. Apply SIA, schedule daily RN/MSW visits per CMS guidance.` });
+        }
+        const sx = p.symptoms || {};
+        SYMPTOMS.forEach(s => {
+          if ((sx[s.key] || 0) >= 2) {
+            alerts.push({ type: 'warn', msg: `${p.label}: ${s.label} rated ${sx[s.key] >= 3 ? 'severe' : 'moderate'}. HOPE requires in-person Symptom Follow-up Visit within 2 calendar days.` });
+          }
+        });
+      });
+      const stack = document.getElementById('alert-stack');
+      stack.innerHTML = '';
+      if (alerts.length === 0) {
+        stack.innerHTML = '<p class="small" style="color: var(--muted-soft);">No active alerts.</p>';
+      } else {
+        alerts.slice(0, 20).forEach(a => {
+          const div = document.createElement('div');
+          div.className = `alert ${a.type}`;
+          div.textContent = a.msg;
+          stack.appendChild(div);
+        });
+        if (alerts.length > 20) {
+          const more = document.createElement('p');
+          more.className = 'small';
+          more.textContent = `+ ${alerts.length - 20} more alerts not shown.`;
+          stack.appendChild(more);
+        }
+      }
+
+      // Sync the count pill
+      const pill = document.getElementById('alert-count');
+      if (pill) {
+        pill.textContent = alerts.length;
+        pill.classList.remove('zero', 'high');
+        if (alerts.length === 0) pill.classList.add('zero');
+        else if (alerts.length >= 5) pill.classList.add('high');
+      }
+    }
+
+    /* =====================================================
+       RENDER: TASK LIST (per patient)
+       ===================================================== */
+    function renderTaskList(p, tasks) {
+      // Sort: overdue first, then active not-completed, then completed
+      const sorted = tasks.slice().sort((a, b) => {
+        const rank = (x) => x.completedRecently ? 2 : (x.overdueDays > 0 ? 0 : (x.active ? 1 : 3));
+        return rank(a) - rank(b);
+      });
+      const visible = sorted.filter(x => x.active || x.completedRecently);
+      if (visible.length === 0) {
+        return '<p class="small" style="color: var(--muted-soft);">No active tasks. New tasks activate as the patient progresses through HOPE timepoints and symptom changes.</p>';
+      }
+      return `
+        <p class="usage" style="margin: 0 0 10px;">Tasks auto-mark when a shift CSV is uploaded. Click any checkbox to mark manually. Hover an item for the evidence anchor.</p>
+        <ul class="task-list" style="list-style: none; padding: 0; margin: 0; display: grid; gap: 6px;">
+          ${visible.map(t => {
+            const checked = !!t.completedRecently;
+            const status = t.completedRecently
+              ? `<span class="pill" style="background: var(--ok-tint); color: var(--ok);">done${t.lastDate ? ' ' + t.lastDate : ''}${t.source === 'csv' ? ' (Epic)' : ''}</span>`
+              : (t.overdueDays > 0
+                  ? `<span class="pill" style="background: var(--danger-tint); color: var(--danger); border-color: var(--danger);">${t.overdueDays}d overdue</span>`
+                  : (t.dueDate ? `<span class="pill" style="background: var(--warn-tint); color: var(--warn);">due ${t.dueDate}</span>` : `<span class="pill">active</span>`));
+            return `
+              <li style="display:flex; align-items:center; gap:10px;">
+                <label style="display:inline-flex; align-items:center; gap:8px; cursor:pointer;" title="${escapeHtml(t.anchor)}">
+                  <input type="checkbox" data-task-check="${p.id}|${t.key}" ${checked ? 'checked' : ''} style="accent-color: var(--gold); width: 18px; height: 18px;">
+                  <span style="${checked ? 'text-decoration: line-through; color: var(--muted-soft);' : ''}">${escapeHtml(t.label)}</span>
+                </label>
+                <span style="margin-left: auto;">${status}</span>
+              </li>
+            `;
+          }).join('')}
+        </ul>
+      `;
+    }
+
+    /* =====================================================
+       RENDER: CENSUS (DAILY ROLL-CALL)
+       ===================================================== */
+    function todayISO() { return new Date().toISOString().slice(0, 10); }
+
+    function renderCensus() {
+      const today = todayISO();
+      const tbody = document.getElementById('census-body');
+      if (!tbody) return;
+      tbody.innerHTML = '';
+      const reviewedToday = state.patients.filter(p => p.lastReviewed === today).length;
+      const summary = document.getElementById('census-summary');
+      if (summary) {
+        summary.innerHTML = `<strong>${reviewedToday}</strong> of <strong>${state.patients.length}</strong> patients reviewed today.`;
+      }
+      if (state.patients.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="10" style="text-align:center; color: var(--muted-soft); padding: 30px;">No active patients. Use "Quick admit" below or upload a shift CSV.</td></tr>';
+      } else {
+        state.patients.forEach(p => {
+          const sc = acuityScore(p);
+          const t = acuityTier(sc);
+          const desc = TIER_DESCRIPTORS[t];
+          const reviewed = p.lastReviewed === today;
+          const days = p.admitDate ? Math.floor((new Date(today) - new Date(p.admitDate)) / 86400000) : '';
+          const tasks = computeTasks(p, today);
+          const overdue = tasks.filter(x => x.active && x.overdueDays > 0 && !x.completedRecently).length;
+          const dueSoon = tasks.filter(x => x.active && x.overdueDays <= 0 && !x.completedRecently && x.dueDate).length;
+          const doneCount = tasks.filter(x => x.active && x.completedRecently).length;
+          const tasksPill = overdue > 0
+            ? `<span class="pill" style="background: var(--danger-tint); color: var(--danger); border-color: var(--danger);">${overdue} overdue</span>`
+            : (dueSoon > 0
+                ? `<span class="pill" style="background: var(--warn-tint); color: var(--warn);">${dueSoon} due</span>`
+                : `<span class="pill" style="background: var(--ok-tint); color: var(--ok);">on track</span>`);
+
+          const tr = document.createElement('tr');
+          tr.innerHTML = `
+            <td>
+              <label style="display:inline-flex; align-items:center; gap:6px; cursor: pointer;">
+                <input type="checkbox" data-review="${p.id}" ${reviewed ? 'checked' : ''} aria-label="Mark ${escapeHtml(p.label)} reviewed today" style="accent-color: var(--gold); width: 18px; height: 18px;">
+                <span class="sr-only">Reviewed today</span>
+              </label>
+            </td>
+            <td><strong style="font-family: 'DM Sans', monospace;">${escapeHtml(p.label)}</strong></td>
+            <td>${escapeHtml((DIAGNOSES.find(d => d.key === p.diagnosis) || { label: '' }).label)}</td>
+            <td><span class="pill t${t}">T${t} (${desc.roman})</span></td>
+            <td><span class="pill phase-${p.phase}">${escapeHtml((PHASES.find(ph => ph.key === p.phase) || { label: '' }).label)}</span></td>
+            <td><span class="pill loc-${p.levelOfCare}">${p.levelOfCare}</span></td>
+            <td>
+              <button class="task-toggle-btn" type="button" data-task-toggle="${p.id}" aria-expanded="false" aria-controls="task-row-${p.id}" title="Show tasks">${tasksPill} <span aria-hidden="true" style="color: var(--muted-soft); margin-left: 4px;">&#9656;</span></button>
+              <span class="sr-only">${doneCount} of ${tasks.filter(x => x.active).length} active tasks completed recently</span>
+            </td>
+            <td>${escapeHtml(p.driveZone || '')}</td>
+            <td>${days === '' ? '' : days + ' d'}</td>
+            <td style="white-space: nowrap;">
+              <button class="btn btn-secondary btn-small" type="button" data-census-edit="${p.id}">Update</button>
+              <button class="btn btn-danger btn-small" type="button" data-census-discharge="${p.id}">Discharge</button>
+            </td>
+          `;
+          tbody.appendChild(tr);
+
+          // Hidden detail row for tasks
+          const taskTr = document.createElement('tr');
+          taskTr.id = `task-row-${p.id}`;
+          taskTr.hidden = true;
+          taskTr.className = 'task-detail-row';
+          taskTr.innerHTML = `<td colspan="10" style="background: var(--off-white); padding: 14px 18px;">${renderTaskList(p, tasks)}</td>`;
+          tbody.appendChild(taskTr);
+        });
+
+        tbody.querySelectorAll('[data-review]').forEach(cb => {
+          cb.addEventListener('change', e => {
+            const id = cb.dataset.review;
+            const p = state.patients.find(x => x.id === id);
+            if (p) {
+              p.lastReviewed = e.target.checked ? today : '';
+              save(); renderAll();
+            }
+          });
+        });
+        tbody.querySelectorAll('[data-task-toggle]').forEach(b => {
+          b.addEventListener('click', () => {
+            const id = b.dataset.taskToggle;
+            const row = document.getElementById(`task-row-${id}`);
+            const expanded = b.getAttribute('aria-expanded') === 'true';
+            b.setAttribute('aria-expanded', expanded ? 'false' : 'true');
+            if (row) row.hidden = expanded;
+          });
+        });
+        tbody.querySelectorAll('[data-task-check]').forEach(cb => {
+          cb.addEventListener('change', e => {
+            const [pid, key] = cb.dataset.taskCheck.split('|');
+            const p = state.patients.find(x => x.id === pid);
+            if (!p) return;
+            if (!p.taskCompletion) p.taskCompletion = {};
+            if (e.target.checked) {
+              p.taskCompletion[key] = { lastDate: todayISO(), source: 'manual' };
+            } else {
+              delete p.taskCompletion[key];
+            }
+            save(); renderAll();
+          });
+        });
+        tbody.querySelectorAll('[data-census-edit]').forEach(b => {
+          b.addEventListener('click', () => openPatientModal(b.dataset.censusEdit));
+        });
+        tbody.querySelectorAll('[data-census-discharge]').forEach(b => {
+          b.addEventListener('click', () => {
+            const id = b.dataset.censusDischarge;
+            const p = state.patients.find(x => x.id === id);
+            if (confirm(`Discharge / remove ${p?.label || 'patient'} from active census?\n\nThis removes them from Cadence. Update your HIPAA-compliant chart separately.`)) {
+              state.patients = state.patients.filter(x => x.id !== id);
+              save(); renderAll();
+            }
+          });
+        });
+      }
+
+      // Quick admit form: populate selects, ID
+      const qaDx = document.getElementById('qa-dx');
+      const qaLoc = document.getElementById('qa-loc');
+      const qaId = document.getElementById('qa-id');
+      if (qaDx && qaLoc && qaId) {
+        if (qaDx.options.length === 0) qaDx.innerHTML = DIAGNOSES.map(d => `<option value="${d.key}">${d.label}</option>`).join('');
+        if (qaLoc.options.length === 0) qaLoc.innerHTML = LEVELS.map(l => `<option value="${l.key}">${l.label}</option>`).join('');
+        if (!qaId.value) qaId.value = generatePrivateId();
+      }
+    }
+
+    /* =====================================================
+       RENDER: WORKFLOW BUCKETS
+       ===================================================== */
+    function renderWorkflow() {
+      const high = state.patients.filter(p => acuityTier(acuityScore(p)) >= 4);
+      const mod  = state.patients.filter(p => acuityTier(acuityScore(p)) === 3);
+      const low  = state.patients.filter(p => acuityTier(acuityScore(p)) <= 2);
+      const twoP = state.patients.filter(p => p.flags && p.flags.twoPersonVisit);
+
+      renderBucket('bucket-high', high, 'No high-acuity patients today.');
+      renderBucket('bucket-mod',  mod,  'No moderate-acuity patients today.');
+      renderBucket('bucket-low',  low,  'No stable patients today.');
+      renderBucket('bucket-twoperson', twoP, 'No 2-person visits flagged today.');
+
+      // Zone clusters
+      const zoneHost = document.getElementById('zone-clusters');
+      if (zoneHost) {
+        const zones = {};
+        state.patients.forEach(p => {
+          const z = p.driveZone || '(no zone)';
+          if (!zones[z]) zones[z] = [];
+          zones[z].push(p);
+        });
+        const entries = Object.entries(zones).sort((a,b) => b[1].length - a[1].length);
+        if (entries.length === 0 || (entries.length === 1 && entries[0][0] === '(no zone)' && entries[0][1].length === 0)) {
+          zoneHost.innerHTML = '<p class="small" style="color: var(--muted-soft);">No patients in census.</p>';
+        } else {
+          zoneHost.innerHTML = entries.map(([z, ps]) => {
+            const avgDrive = ps.reduce((a, p) => a + (p.driveMinutes || 0), 0) / ps.length;
+            return `
+              <div style="display:flex; justify-content: space-between; align-items: center; padding: 6px 0; border-bottom: 1px dashed var(--border);">
+                <span><strong>${escapeHtml(z)}</strong></span>
+                <span class="small">${ps.length} pt · avg ${Math.round(avgDrive)} min one-way</span>
+              </div>
+            `;
+          }).join('');
+        }
+      }
+
+      // Staff recommendation
+      renderStaffRecommendation();
+    }
+
+    function renderBucket(hostId, patients, emptyMsg) {
+      const host = document.getElementById(hostId);
+      if (!host) return;
+      if (patients.length === 0) {
+        host.innerHTML = `<p class="small" style="color: var(--muted-soft);">${emptyMsg}</p>`;
+        return;
+      }
+      host.innerHTML = '';
+      patients
+        .sort((a, b) => acuityScore(b) - acuityScore(a))
+        .forEach(p => {
+          const sc = acuityScore(p);
+          const t = acuityTier(sc);
+          const desc = TIER_DESCRIPTORS[t];
+          const wmin = weeklyMinutesForPatient(p);
+          const assignedName = (state.staff.find(s => s.id === p.assignedTo) || {}).name || '';
+          const flagPills = [];
+          if (p.flags?.twoPersonVisit) flagPills.push('2-person');
+          if (p.flags?.deathImminent) flagPills.push('Imminent');
+          if (p.flags?.recentAdmit) flagPills.push('New admit');
+          if (p.flags?.soleCaregiver) flagPills.push('Sole CG');
+          if (p.flags?.woundCare) flagPills.push('Wound');
+          if (p.flags?.iv) flagPills.push('IV/pump');
+          const card = document.createElement('div');
+          card.className = `assign-card ${t >= 4 ? 'tier-high' : t === 3 ? 'tier-mid' : 'tier-low'}`;
+          card.innerHTML = `
+            <div style="display:flex; justify-content: space-between; gap: 8px; align-items: flex-start;">
+              <div>
+                <strong style="font-family: 'DM Sans', monospace;">${escapeHtml(p.label)}</strong>
+                <span class="pill t${t}">T${t} ${desc.roman}</span>
+                <span class="pill phase-${p.phase}">${escapeHtml((PHASES.find(ph => ph.key === p.phase) || { label: '' }).label)}</span>
+                <span class="pill loc-${p.levelOfCare}">${p.levelOfCare}</span>
+              </div>
+              <span class="small">${Math.round(wmin/60)} hr/wk</span>
+            </div>
+            <div class="small" style="margin: 4px 0;">${escapeHtml(p.driveZone || 'No zone')} · ${p.driveMinutes || 0} min drive · Assigned: ${escapeHtml(assignedName || 'unassigned')}</div>
+            <div class="flag-list">${flagPills.map(f => `<span class="flag">${f}</span>`).join('')}</div>
+          `;
+          host.appendChild(card);
+        });
+    }
+
+    function renderStaffRecommendation() {
+      const host = document.getElementById('staff-recommendation');
+      if (!host) return;
+
+      // Bucket counts
+      const tierCounts = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
+      let totalRHC = 0, totalIPU = 0, totalGIP = 0, totalCHC = 0;
+      state.patients.forEach(p => {
+        tierCounts[acuityTier(acuityScore(p))]++;
+        if (p.levelOfCare === 'RHC') totalRHC++;
+        else if (p.levelOfCare === 'IPU' || p.levelOfCare === 'RESPITE') totalIPU++;
+        else if (p.levelOfCare === 'GIP') totalGIP++;
+        else if (p.levelOfCare === 'CHC') totalCHC++;
+      });
+      const twoP = state.patients.filter(p => p.flags?.twoPersonVisit).length;
+
+      // RN need today (rough): 1 RN visit per high+mod patient, 0.5 for stable + drive
+      const todayHigh = tierCounts[4] + tierCounts[5];
+      const todayMod = tierCounts[3];
+      const todayLow = tierCounts[1] + tierCounts[2];
+      // Per-patient day minutes (direct + drive)
+      const avgDrive = state.patients.length ? (state.patients.reduce((a,p)=>a+(p.driveMinutes||0),0) / state.patients.length) : 30;
+      const directHigh = (todayHigh * (75 + avgDrive)); // T4-T5
+      const directMod  = (todayMod * (55 + avgDrive));  // T3
+      const directLow  = (todayLow * 0.5 * (45 + avgDrive)); // half see HHA only, half RN
+      const dayMinutesNeeded = directHigh + directMod + directLow;
+      const rnAvailable = state.staff.filter(s => s.onShift !== false && (s.role === 'RN' || s.role === 'APP')).length;
+      const lvnAvailable = state.staff.filter(s => s.onShift !== false && s.role === 'LVN').length;
+      const ccaAvailable = state.staff.filter(s => s.onShift !== false && s.role === 'HHA').length;
+      const swAvailable = state.staff.filter(s => s.onShift !== false && s.role === 'SW').length;
+      const chapAvailable = state.staff.filter(s => s.onShift !== false && s.role === 'CHAP').length;
+
+      const rnDayCapacity = 8 * 60 * 0.65; // 8 hr * 60 min * productivity
+      const rnNeeded = Math.ceil(dayMinutesNeeded / rnDayCapacity);
+      const lvnNeeded = Math.ceil(todayLow / 6); // 6 stable pts per LVN day
+      const ccaNeeded = Math.ceil(state.patients.length / 6); // 6 aide visits per day
+      const swNeeded = Math.max(1, Math.ceil(state.patients.length / 25));
+      const chapNeeded = Math.max(1, Math.ceil(state.patients.length / 40));
+
+      // IPU/GIP override: at GIP ratio 1:1.6, need ceil(IPU/1.6) RNs per 12h shift, *2 shifts/day, but plus existing home RN
+      const ipuRN = totalIPU || totalGIP ? Math.ceil((totalIPU + totalGIP) / (state.settings.ipuRatio || 1.6)) * 2 : 0;
+
+      const rnTotal = rnNeeded + ipuRN;
+
+      host.innerHTML = `
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Role</th><th>Need today</th><th>On shift</th><th>Status</th></tr></thead>
+            <tbody>
+              ${recRow('RN', rnTotal, rnAvailable)}
+              ${recRow('LVN / LPN', lvnNeeded, lvnAvailable)}
+              ${recRow('Hospice aide (CNA)', ccaNeeded, ccaAvailable)}
+              ${recRow('MSW', swNeeded, swAvailable)}
+              ${recRow('Chaplain', chapNeeded, chapAvailable)}
+            </tbody>
+          </table>
+        </div>
+        <div style="margin-top: 12px; display: grid; gap: 6px;">
+          <div class="small"><strong>${todayHigh}</strong> high-acuity, <strong>${todayMod}</strong> moderate, <strong>${todayLow}</strong> stable. <strong>${twoP}</strong> need a 2-person visit. <strong>${totalGIP + totalIPU}</strong> inpatient.</div>
+          <div class="small">Day workload estimate: <strong>${Math.round(dayMinutesNeeded/60)} hours</strong> of RN direct-care plus drive time (avg drive ${Math.round(avgDrive)} min/pt one-way).</div>
+          <div class="small">2-person visits double the staffing minutes for that patient and should be co-scheduled.</div>
+        </div>
+      `;
+    }
+
+    function recRow(role, need, have) {
+      const status = have >= need
+        ? `<span class="pill" style="background: var(--ok-tint); color: var(--ok); border-color: var(--ok);">OK (+${have-need})</span>`
+        : `<span class="pill" style="background: var(--danger-tint); color: var(--danger); border-color: var(--danger);">Short ${need - have}</span>`;
+      return `<tr><td><strong>${role}</strong></td><td>${need}</td><td>${have}</td><td>${status}</td></tr>`;
+    }
+
+    /* =====================================================
+       RENDER: ROSTER
+       ===================================================== */
+    function renderRoster() {
+      const tbody = document.getElementById('roster-body');
+      tbody.innerHTML = '';
+      if (state.patients.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="11" style="text-align:center; color: var(--muted-soft); padding: 30px;">No patients yet. Click "Add patient" to begin.</td></tr>';
+        return;
+      }
+      state.patients.forEach(p => {
+        const score = acuityScore(p);
+        const tier = acuityTier(score);
+        const wmin = weeklyMinutesForPatient(p);
+        const dx = (DIAGNOSES.find(d => d.key === p.diagnosis) || { label: '' }).label;
+        const sxSum = SYMPTOMS.reduce((a,s) => a + (Number(p.symptoms?.[s.key]) || 0), 0);
+        const phaseLabel = (PHASES.find(x => x.key === p.phase) || { label: '' }).label;
+        const assignedName = (state.staff.find(s => s.id === p.assignedTo) || { name: '' }).name;
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td><strong>${escapeHtml(p.label)}</strong></td>
+          <td>${escapeHtml(dx)}</td>
+          <td>${p.pps ?? ''}%</td>
+          <td><span class="pill phase-${p.phase}">${escapeHtml(phaseLabel)}</span></td>
+          <td><span class="pill loc-${p.levelOfCare}">${escapeHtml(p.levelOfCare)}</span></td>
+          <td>${sxSum}/24</td>
+          <td><span class="pill t${tier}">T${tier} · ${score}</span></td>
+          <td>${Math.round(wmin/60)} hr</td>
+          <td>${p.lastVisit || ''}</td>
+          <td>${escapeHtml(assignedName || '')}</td>
+          <td>
+            <button class="btn btn-secondary btn-small" type="button" data-edit="${p.id}">Edit</button>
+            <button class="btn btn-danger btn-small" type="button" data-delete="${p.id}">Remove</button>
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
+      tbody.querySelectorAll('[data-edit]').forEach(b => {
+        b.addEventListener('click', () => openPatientModal(b.dataset.edit));
+      });
+      tbody.querySelectorAll('[data-delete]').forEach(b => {
+        b.addEventListener('click', () => {
+          if (confirm('Remove this patient from the roster?')) {
+            state.patients = state.patients.filter(x => x.id !== b.dataset.delete);
+            save(); renderAll();
+          }
+        });
+      });
+    }
+
+    /* =====================================================
+       RENDER: ASSIGNMENT
+       ===================================================== */
+    function renderAssignment() {
+      const grid = document.getElementById('assign-grid');
+      grid.innerHTML = '';
+      const onShiftStaff = state.staff.filter(s => s.onShift !== false);
+      if (onShiftStaff.length === 0) {
+        grid.innerHTML = '<p class="small" style="color: var(--muted-soft);">No staff are on shift. Mark staff as on-shift in the Staff tab.</p>';
+      } else {
+        onShiftStaff.forEach(s => {
+          const assigned = state.patients.filter(p => p.assignedTo === s.id);
+          const totalMin = assigned.reduce((a, p) => a + weeklyMinutesForPatient(p), 0);
+          const capacity = (s.fteWeekly || 40) * 60 * (s.productivity || state.settings.productivity);
+          const pct = capacity > 0 ? Math.min(150, (totalMin / capacity) * 100) : 0;
+          const col = document.createElement('div');
+          col.className = 'assign-col';
+          col.innerHTML = `
+            <h3>
+              <span>${escapeHtml(s.name || s.id)} <span class="small">(${s.role})</span></span>
+              <span class="small">${assigned.length} pt · ${Math.round(totalMin/60)} hr</span>
+            </h3>
+            <div class="progress ${pct > 100 ? 'over' : ''}"><span style="width: ${Math.min(100, pct)}%;"></span></div>
+            <p class="small" style="margin: 4px 0 12px;">Capacity ${(capacity/60).toFixed(0)} hr/wk · load ${pct.toFixed(0)}%</p>
+            <div data-staff-col="${s.id}"></div>
+          `;
+          grid.appendChild(col);
+          const cardHost = col.querySelector(`[data-staff-col="${s.id}"]`);
+          assigned
+            .sort((a,b) => acuityScore(b) - acuityScore(a))
+            .forEach(p => {
+              const t = acuityTier(acuityScore(p));
+              const card = document.createElement('div');
+              card.className = `assign-card ${t >= 4 ? 'tier-high' : t === 3 ? 'tier-mid' : 'tier-low'}`;
+              card.innerHTML = `
+                <strong>${escapeHtml(p.label)}</strong> <span class="pill t${t}">T${t}</span><br>
+                <span class="small">${escapeHtml((PHASES.find(x=>x.key===p.phase)||{}).label || '')} · ${p.levelOfCare} · ${Math.round(weeklyMinutesForPatient(p)/60)} hr/wk</span>
+                <div style="margin-top:6px;">
+                  <select aria-label="Reassign patient ${escapeHtml(p.label)}" data-reassign="${p.id}" style="font-size:12px; padding: 4px;">
+                    <option value="">(Unassign)</option>
+                    ${state.staff.filter(st => st.onShift !== false).map(st => `<option value="${st.id}" ${st.id===p.assignedTo?'selected':''}>${escapeHtml(st.name || st.id)}</option>`).join('')}
+                  </select>
+                </div>
+              `;
+              cardHost.appendChild(card);
+            });
+        });
+      }
+
+      const unassigned = state.patients.filter(p => !p.assignedTo);
+      const ul = document.getElementById('unassigned-list');
+      ul.innerHTML = '';
+      if (unassigned.length === 0) {
+        ul.innerHTML = '<p class="small" style="color: var(--muted-soft);">All patients are assigned.</p>';
+      } else {
+        unassigned
+          .sort((a,b) => priorityScore(b) - priorityScore(a))
+          .forEach(p => {
+            const t = acuityTier(acuityScore(p));
+            const card = document.createElement('div');
+            card.className = `assign-card ${t >= 4 ? 'tier-high' : t === 3 ? 'tier-mid' : 'tier-low'}`;
+            card.innerHTML = `
+              <strong>${escapeHtml(p.label)}</strong> <span class="pill t${t}">T${t}</span> · ${Math.round(weeklyMinutesForPatient(p)/60)} hr/wk
+              <select aria-label="Assign ${escapeHtml(p.label)} to staff" data-reassign="${p.id}" style="font-size:12px; padding: 4px; margin-left: 8px;">
+                <option value="">(Assign to...)</option>
+                ${state.staff.filter(st => st.onShift !== false).map(st => `<option value="${st.id}">${escapeHtml(st.name || st.id)}</option>`).join('')}
+              </select>
+            `;
+            ul.appendChild(card);
+          });
+      }
+
+      document.querySelectorAll('[data-reassign]').forEach(sel => {
+        sel.addEventListener('change', e => {
+          const id = sel.dataset.reassign;
+          const p = state.patients.find(x => x.id === id);
+          if (p) {
+            p.assignedTo = e.target.value || '';
+            save(); renderAll();
+          }
+        });
+      });
+    }
+
+    /* =====================================================
+       RENDER: FORECAST
+       ===================================================== */
+    function computeRNFTE() {
+      let totalRNMinutes = 0;
+      let ipuPatientMinutes = 0;
+      let chcMinutes = 0;
+      let gipMinutes = 0;
+
+      state.patients.forEach(p => {
+        if (p.levelOfCare === 'RHC') {
+          totalRNMinutes += weeklyMinutesForPatient(p);
+        } else if (p.levelOfCare === 'CHC') {
+          // CHC ~ 50% nursing
+          chcMinutes += weeklyMinutesForPatient(p) * 0.5;
+        } else if (p.levelOfCare === 'IPU' || p.levelOfCare === 'RESPITE') {
+          // IPU nursing time at ratio
+          ipuPatientMinutes += (24 * 60 * 7) / state.settings.ipuRatio;
+        } else if (p.levelOfCare === 'GIP') {
+          gipMinutes += 24 * 60 * 7; // closer to 1:1 nursing
+        }
+      });
+
+      const totalMinutesNeeded = totalRNMinutes + chcMinutes + ipuPatientMinutes + gipMinutes;
+      const productive = state.settings.productivity;
+      const rnMinutesPerFTE = state.settings.rnHoursWeek * 60 * productive;
+      return totalMinutesNeeded / rnMinutesPerFTE;
+    }
+
+    function renderForecast() {
+      // Counts by level
+      const counts = { RHC: 0, IPU: 0, GIP: 0, CHC: 0, RESPITE: 0 };
+      const tierCounts = { 1:0, 2:0, 3:0, 4:0, 5:0 };
+      state.patients.forEach(p => {
+        counts[p.levelOfCare] = (counts[p.levelOfCare] || 0) + 1;
+        tierCounts[acuityTier(acuityScore(p))]++;
+      });
+      const totalRoster = state.patients.length;
+
+      let totalRN = 0, totalLVN = 0, totalSW = 0, totalCHAP = 0, totalAIDE = 0;
+      state.patients.forEach(p => {
+        const tier = acuityTier(acuityScore(p));
+        const wmin = weeklyMinutesForPatient(p);
+        if (p.levelOfCare === 'RHC') {
+          totalRN += wmin;
+          totalLVN += tier * 30; // LVN supplemental visits scale with tier
+          totalAIDE += 60 * (tier + 1); // 1-6 aide visits/week
+          totalSW += 30 * Math.max(1, Math.ceil(tier / 2));
+          totalCHAP += 30;
+        } else if (p.levelOfCare === 'CHC') {
+          totalRN += wmin * 0.5;
+          totalAIDE += wmin * 0.5;
+          totalSW += 60;
+        } else if (p.levelOfCare === 'GIP' || p.levelOfCare === 'IPU' || p.levelOfCare === 'RESPITE') {
+          totalRN += wmin * 0.55;
+          totalLVN += wmin * 0.25;
+          totalAIDE += wmin * 0.20;
+          totalSW += 30 * tier;
+          totalCHAP += 30;
+        }
+      });
+
+      const prod = state.settings.productivity;
+      const fteHours = state.settings.rnHoursWeek * 60;
+      const fte = (mins) => (mins / (fteHours * prod));
+
+      const rows = [
+        { role: 'RN', mins: totalRN, target: 13 },
+        { role: 'LVN/LPN', mins: totalLVN },
+        { role: 'Hospice aide', mins: totalAIDE },
+        { role: 'MSW', mins: totalSW },
+        { role: 'Chaplain', mins: totalCHAP }
+      ];
+
+      const host = document.getElementById('forecast-output');
+      const totalHours = (totalRN + totalLVN + totalAIDE + totalSW + totalCHAP) / 60;
+      host.innerHTML = `
+        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px; margin-bottom: 14px;">
+          <div><p class="stat-label">Census</p><p class="stat" style="font-size:24px;">${totalRoster}</p></div>
+          <div><p class="stat-label">RHC / IPU / GIP / CHC</p><p class="stat" style="font-size:18px;">${counts.RHC||0} / ${(counts.IPU||0)+(counts.RESPITE||0)} / ${counts.GIP||0} / ${counts.CHC||0}</p></div>
+          <div><p class="stat-label">Total weekly hours</p><p class="stat" style="font-size:24px;">${totalHours.toFixed(0)}</p></div>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Role</th><th>Weekly hours needed</th><th>FTE needed</th><th>Notes</th></tr></thead>
+            <tbody>
+              ${rows.map(r => `
+                <tr>
+                  <td><strong>${r.role}</strong></td>
+                  <td>${(r.mins/60).toFixed(1)}</td>
+                  <td><strong>${fte(r.mins).toFixed(1)}</strong></td>
+                  <td class="small">${roleNote(r.role, fte(r.mins), totalRoster)}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </div>
+      `;
+
+      renderWeightsTable();
+    }
+
+    function roleNote(role, fte, census) {
+      if (role === 'RN') {
+        const caseload = census && fte > 0 ? (census / fte).toFixed(1) : '';
+        return `Implied caseload ~${caseload}:1 RN. Benchmark 12–14:1 (Multi-View); industry reality 16–24:1.`;
+      }
+      if (role === 'Hospice aide') return 'Aide capacity drives bath, hygiene, and family respite.';
+      if (role === 'MSW') return 'Required as a hospice core service under 42 CFR 418.64.';
+      if (role === 'Chaplain') return 'Counseling/spiritual care: also a required hospice core service.';
+      if (role === 'LVN/LPN') return 'Supplemental visits and continuity. RN must remain case manager of record.';
+      return '';
+    }
+
+    function renderWeightsTable() {
+      const tbody = document.getElementById('weights-table');
+      tbody.innerHTML = '';
+      [1,2,3,4,5].forEach(t => {
+        const effective = effectiveVisitMinutes(t, 'routine');
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td><span class="pill t${t}">T${t}</span></td>
+          <td>${effective.minutes} min</td>
+          <td>${DEFAULT_VISITS_PER_WEEK[t]}/wk</td>
+          <td>${effective.source === 'learned' ? '<strong>Learned</strong>' : 'Default'}</td>
+          <td>${effective.n}</td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    /* =====================================================
+       RENDER: LOG
+       ===================================================== */
+    function renderLog() {
+      // Populate selects
+      const patientSel = document.getElementById('log-patient');
+      patientSel.innerHTML = state.patients.map(p =>
+        `<option value="${p.id}">${escapeHtml(p.label)}</option>`
+      ).join('') || '<option value="">No patients</option>';
+
+      const staffSel = document.getElementById('log-staff');
+      staffSel.innerHTML = state.staff.map(s =>
+        `<option value="${s.id}">${escapeHtml(s.name || s.id)} (${s.role})</option>`
+      ).join('') || '<option value="">No staff</option>';
+
+      const tbody = document.getElementById('log-body');
+      tbody.innerHTML = '';
+      if (state.visits.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="8" style="text-align:center; color: var(--muted-soft); padding: 20px;">No visits logged yet.</td></tr>';
+        return;
+      }
+      state.visits.slice().reverse().forEach(v => {
+        const p = state.patients.find(x => x.id === v.patientId);
+        const s = state.staff.find(x => x.id === v.staffId);
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${v.date}</td>
+          <td>${escapeHtml(p?.label || '')}</td>
+          <td>${escapeHtml(s?.name || '')}</td>
+          <td>${v.visitType}</td>
+          <td><span class="pill t${v.tierAtVisit}">T${v.tierAtVisit}</span></td>
+          <td>${v.directMinutes}</td>
+          <td>${v.travelMinutes || 0}</td>
+          <td><button class="btn btn-danger btn-small" type="button" data-del-visit="${v.id}">Remove</button></td>
+        `;
+        tbody.appendChild(tr);
+      });
+      tbody.querySelectorAll('[data-del-visit]').forEach(b => {
+        b.addEventListener('click', () => {
+          state.visits = state.visits.filter(v => v.id !== b.dataset.delVisit);
+          save(); renderAll();
+        });
+      });
+    }
+
+    /* =====================================================
+       RENDER: STAFF
+       ===================================================== */
+    function renderStaff() {
+      const tbody = document.getElementById('staff-body');
+      tbody.innerHTML = '';
+      const onShift = state.staff.filter(s => s.onShift !== false).length;
+      const summary = document.getElementById('staff-summary');
+      if (summary) summary.textContent = `${onShift} of ${state.staff.length} staff currently on shift.`;
+
+      if (state.staff.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="8" style="text-align:center; color: var(--muted-soft); padding: 30px;">No staff yet. Click "Add staff" to begin.</td></tr>';
+        return;
+      }
+      state.staff.forEach(s => {
+        const onShiftChecked = s.onShift !== false;
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>
+            <label style="display: inline-flex; align-items: center; gap: 6px; cursor: pointer;">
+              <input type="checkbox" data-shift="${s.id}" ${onShiftChecked ? 'checked' : ''} aria-label="On shift today: ${escapeHtml(s.name || s.id)}" style="accent-color: var(--gold); width: 18px; height: 18px;">
+              <span class="sr-only">On shift</span>
+            </label>
+          </td>
+          <td><strong>${escapeHtml(s.name || s.id)}</strong></td>
+          <td>${escapeHtml((ROLES.find(r=>r.key===s.role)||{}).label || s.role)}</td>
+          <td>${s.fteWeekly || 40}</td>
+          <td>${s.productivity ?? state.settings.productivity}</td>
+          <td>${s.caseloadTarget ?? ''}</td>
+          <td>${escapeHtml(s.homeZone || '')}</td>
+          <td>
+            <button class="btn btn-secondary btn-small" type="button" data-edit-staff="${s.id}">Edit</button>
+            <button class="btn btn-danger btn-small" type="button" data-del-staff="${s.id}">Remove</button>
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
+      tbody.querySelectorAll('[data-shift]').forEach(cb => {
+        cb.addEventListener('change', e => {
+          const id = cb.dataset.shift;
+          const st = state.staff.find(x => x.id === id);
+          if (st) {
+            st.onShift = e.target.checked;
+            save(); renderAll();
+          }
+        });
+      });
+      tbody.querySelectorAll('[data-edit-staff]').forEach(b => {
+        b.addEventListener('click', () => openStaffModal(b.dataset.editStaff));
+      });
+      tbody.querySelectorAll('[data-del-staff]').forEach(b => {
+        b.addEventListener('click', () => {
+          if (confirm('Remove this staff member?')) {
+            const id = b.dataset.delStaff;
+            state.staff = state.staff.filter(x => x.id !== id);
+            state.patients.forEach(p => { if (p.assignedTo === id) p.assignedTo = ''; });
+            save(); renderAll();
+          }
+        });
+      });
+    }
+
+    /* =====================================================
+       MODAL: PATIENT
+       ===================================================== */
+    function openPatientModal(id) {
+      const editing = id ? state.patients.find(p => p.id === id) : null;
+      const p = editing ? JSON.parse(JSON.stringify(editing)) : {
+        id: uid(),
+        label: '',
+        diagnosis: 'cancer',
+        pps: 50,
+        symptoms: { pain:0, dyspnea:0, anxiety:0, nausea:0, vomiting:0, diarrhea:0, constipation:0, agitation:0 },
+        phase: 'stable',
+        levelOfCare: 'RHC',
+        flags: {},
+        lastVisit: '',
+        assignedTo: '',
+        driveZone: '',
+        driveMinutes: 0,
+        admitDate: new Date().toISOString().slice(0,10),
+        lastReviewed: '',
+        notes: ''
+      };
+      document.getElementById('modal-eyebrow').textContent = editing ? 'Edit patient' : 'Add patient';
+      document.getElementById('modal-title').textContent = editing ? `Edit ${p.label || 'patient'}` : 'New patient';
+
+      const body = document.getElementById('modal-body');
+      // Auto-generate a private ID if creating new
+      if (!editing && !p.label) p.label = generatePrivateId();
+
+      body.innerHTML = `
+        <form id="patient-form">
+          <section>
+            <h3>Private identifier (HIPAA-safe)</h3>
+            <div class="alert" style="margin-bottom: 12px;">This token is the <strong>only</strong> identifier this tool will store. Copy it into your HIPAA-compliant EHR or chart next to the real patient. Never enter the patient's name, MRN, DOB, or other identifiers anywhere in this tool.</div>
+            <div class="form-grid">
+              <div class="field">
+                <label for="pf-label">Private ID *</label>
+                <div style="display: flex; gap: 6px; align-items: center;">
+                  <input id="pf-label" type="text" maxlength="20" required value="${escapeHtml(p.label)}" pattern="^[A-Z0-9_\\-]+$" style="flex:1; font-family: 'DM Sans', monospace; letter-spacing: 0.05em;">
+                  <button class="btn btn-secondary btn-small" type="button" id="pf-regen" title="Generate a new random private ID">Regenerate</button>
+                </div>
+                <span class="hint">Letters, numbers, hyphens, and underscores only. No names, no MRNs.</span>
+                <span class="hint" id="pf-label-warn" style="color: var(--danger); font-weight: 600;"></span>
+              </div>
+              <div class="field">
+                <label for="pf-dx">Primary diagnosis</label>
+                <select id="pf-dx">
+                  ${DIAGNOSES.map(d => `<option value="${d.key}" ${d.key===p.diagnosis?'selected':''}>${d.label}</option>`).join('')}
+                </select>
+              </div>
+              <div class="field">
+                <label for="pf-last">Last visit</label>
+                <input id="pf-last" type="date" value="${p.lastVisit || ''}">
+              </div>
+            </div>
+          </section>
+
+          <section>
+            <h3>Functional status (PPS)</h3>
+            <div class="field">
+              <label for="pf-pps">Palliative Performance Scale: <strong id="pf-pps-out">${p.pps}%</strong></label>
+              <input id="pf-pps" type="range" min="10" max="100" step="10" value="${p.pps}">
+              <span class="hint">100 = fully ambulatory and self-care; 10 = totally bedfast, unable to take anything by mouth.</span>
+            </div>
+          </section>
+
+          <section>
+            <h3>HOPE symptom impact (0 None · 1 Mild · 2 Moderate · 3 Severe)</h3>
+            <div>
+              ${SYMPTOMS.map(s => `
+                <div class="symptom-row">
+                  <span>${s.label}</span>
+                  <div class="scale" role="radiogroup" aria-label="${s.label} severity">
+                    ${[0,1,2,3].map(v => `
+                      <span>
+                        <input type="radio" id="sx-${s.key}-${v}" name="sx-${s.key}" value="${v}" ${(p.symptoms?.[s.key]||0)===v?'checked':''}>
+                        <label for="sx-${s.key}-${v}">${v}</label>
+                      </span>
+                    `).join('')}
+                  </div>
+                </div>
+              `).join('')}
+            </div>
+            <p class="hint" style="margin-top:10px;">Per CMS HOPE: any moderate or severe rating triggers an in-person Symptom Follow-up Visit within 2 calendar days.</p>
+          </section>
+
+          <section>
+            <h3>Phase of Illness</h3>
+            <div class="radio-pills" role="radiogroup" aria-label="Phase of Illness">
+              ${PHASES.map(ph => `
+                <span>
+                  <input type="radio" id="ph-${ph.key}" name="phase" value="${ph.key}" ${p.phase===ph.key?'checked':''}>
+                  <label for="ph-${ph.key}">${ph.label}</label>
+                </span>
+              `).join('')}
+            </div>
+            <p class="hint" style="margin-top:6px;">Stable: controlled. Unstable: urgent change needed today. Deteriorating: regular review. Dying: death expected in days.</p>
+          </section>
+
+          <section>
+            <h3>Level of care</h3>
+            <div class="radio-pills" role="radiogroup" aria-label="Level of care">
+              ${LEVELS.map(l => `
+                <span>
+                  <input type="radio" id="loc-${l.key}" name="loc" value="${l.key}" ${p.levelOfCare===l.key?'checked':''}>
+                  <label for="loc-${l.key}">${l.label}</label>
+                </span>
+              `).join('')}
+            </div>
+          </section>
+
+          <section>
+            <h3>Flags</h3>
+            <div class="check-group">
+              ${FLAGS.map(f => `
+                <label>
+                  <input type="checkbox" data-flag="${f.key}" ${p.flags?.[f.key]?'checked':''}>
+                  ${f.label}
+                </label>
+              `).join('')}
+            </div>
+          </section>
+
+          <section>
+            <h3>Travel zone (HIPAA-safe, optional)</h3>
+            <div class="form-grid">
+              <div class="field">
+                <label for="pf-zone">Drive zone tag</label>
+                <input id="pf-zone" type="text" maxlength="20" value="${escapeHtml(p.driveZone || '')}" placeholder="e.g., Zone-North, ZIP3-548">
+                <span class="hint">Region label or 3-digit ZIP prefix. Never a street address. 3-digit ZIP is HIPAA Safe Harbor only in regions over 20,000 population.</span>
+              </div>
+              <div class="field">
+                <label for="pf-drive">One-way drive minutes</label>
+                <input id="pf-drive" type="number" min="0" max="240" step="5" value="${p.driveMinutes || 0}">
+                <span class="hint">Approximate one-way drive from your office or staff hub. Used directly in workload calc when present.</span>
+              </div>
+              <div class="field">
+                <label for="pf-admit">Admit date</label>
+                <input id="pf-admit" type="date" value="${p.admitDate || ''}">
+              </div>
+            </div>
+          </section>
+
+          <section>
+            <h3>Assignment (optional)</h3>
+            <div class="form-grid">
+              <div class="field">
+                <label for="pf-assigned">Primary clinician (today's shift only)</label>
+                <select id="pf-assigned">
+                  <option value="">(Unassigned)</option>
+                  ${state.staff.filter(s => s.onShift !== false).map(s => `<option value="${s.id}" ${s.id===p.assignedTo?'selected':''}>${escapeHtml(s.name || s.id)} (${s.role})</option>`).join('')}
+                </select>
+                <span class="hint">Only on-shift staff appear here. Mark staff as on-shift in the Staff tab.</span>
+              </div>
+            </div>
+          </section>
+
+          <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-top: 20px; border-top: 1px solid var(--border); padding-top: 16px;">
+            <button class="btn btn-gold" type="submit">Save</button>
+            <button class="btn btn-secondary" type="button" id="pf-cancel">Cancel</button>
+            <span class="usage" id="pf-score-live" style="margin-left:auto;"></span>
+          </div>
+        </form>
+      `;
+
+      const form = document.getElementById('patient-form');
+      const ppsSlider = document.getElementById('pf-pps');
+      const ppsOut = document.getElementById('pf-pps-out');
+      const scoreLive = document.getElementById('pf-score-live');
+
+      function updateLive() {
+        const draft = readPatientForm();
+        const sc = acuityScore(draft);
+        const t = acuityTier(sc);
+        scoreLive.innerHTML = `Acuity score <strong>${sc}</strong> · tier <span class="pill t${t}">T${t}</span>`;
+        const warn = phiWarning(document.getElementById('pf-label').value);
+        document.getElementById('pf-label-warn').textContent = warn;
+      }
+      ppsSlider.addEventListener('input', () => {
+        ppsOut.textContent = ppsSlider.value + '%';
+        updateLive();
+      });
+      form.addEventListener('change', updateLive);
+      form.addEventListener('input', updateLive);
+
+      // Regenerate private ID
+      document.getElementById('pf-regen').addEventListener('click', () => {
+        document.getElementById('pf-label').value = generatePrivateId();
+        updateLive();
+      });
+      updateLive();
+
+      function readPatientForm() {
+        const symptoms = {};
+        SYMPTOMS.forEach(s => {
+          const checked = form.querySelector(`input[name="sx-${s.key}"]:checked`);
+          symptoms[s.key] = checked ? Number(checked.value) : 0;
+        });
+        const flags = {};
+        form.querySelectorAll('[data-flag]').forEach(cb => {
+          flags[cb.dataset.flag] = cb.checked;
+        });
+        return {
+          id: p.id,
+          label: document.getElementById('pf-label').value.trim() || 'Patient',
+          diagnosis: document.getElementById('pf-dx').value,
+          pps: Number(document.getElementById('pf-pps').value),
+          symptoms,
+          phase: (form.querySelector('input[name="phase"]:checked') || {}).value || 'stable',
+          levelOfCare: (form.querySelector('input[name="loc"]:checked') || {}).value || 'RHC',
+          flags,
+          lastVisit: document.getElementById('pf-last').value || '',
+          assignedTo: document.getElementById('pf-assigned').value || '',
+          driveZone: document.getElementById('pf-zone').value.trim() || '',
+          driveMinutes: Number(document.getElementById('pf-drive').value) || 0,
+          admitDate: document.getElementById('pf-admit').value || p.admitDate || new Date().toISOString().slice(0,10),
+          lastReviewed: p.lastReviewed || '',
+          createdAt: editing?.createdAt || new Date().toISOString()
+        };
+      }
+
+      form.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const next = readPatientForm();
+        const warn = phiWarning(next.label);
+        if (warn) {
+          const proceed = confirm(`HIPAA guard: "${next.label}" ${warn}\n\nUse the Regenerate button to get a safe token, or click OK to save anyway. Cancel to fix it.`);
+          if (!proceed) return;
+        }
+        if (editing) {
+          const idx = state.patients.findIndex(x => x.id === editing.id);
+          state.patients[idx] = next;
+        } else {
+          state.patients.push(next);
+        }
+        save(); closeModal(); renderAll();
+      });
+      document.getElementById('pf-cancel').addEventListener('click', closeModal);
+
+      openModal();
+    }
+
+    /* =====================================================
+       MODAL: STAFF
+       ===================================================== */
+    function openStaffModal(id) {
+      const editing = id ? state.staff.find(s => s.id === id) : null;
+      const s = editing ? JSON.parse(JSON.stringify(editing)) : {
+        id: 's_' + Math.random().toString(36).slice(2, 9),
+        name: '',
+        role: 'RN',
+        fteWeekly: 40,
+        productivity: 0.65,
+        caseloadTarget: 13,
+        onShift: true,
+        homeZone: ''
+      };
+
+      document.getElementById('modal-eyebrow').textContent = editing ? 'Edit staff' : 'Add staff';
+      document.getElementById('modal-title').textContent = editing ? `Edit ${s.name || 'staff'}` : 'New staff member';
+
+      const body = document.getElementById('modal-body');
+      body.innerHTML = `
+        <form id="staff-form" class="form-grid">
+          <div class="field">
+            <label for="sf-name">Staff name *</label>
+            <input id="sf-name" type="text" maxlength="40" required value="${escapeHtml(s.name)}" placeholder="e.g., Maria S., RN">
+            <span class="hint">First name plus last initial works. Staff names are not PHI.</span>
+          </div>
+          <div class="field">
+            <label for="sf-role">Role</label>
+            <select id="sf-role">
+              ${ROLES.map(r => `<option value="${r.key}" ${r.key===s.role?'selected':''}>${r.label}</option>`).join('')}
+            </select>
+          </div>
+          <div class="field">
+            <label for="sf-fte">FTE hours / week</label>
+            <input id="sf-fte" type="number" min="4" max="60" step="1" value="${s.fteWeekly}">
+          </div>
+          <div class="field">
+            <label for="sf-prod">Direct-care productivity (0.30 to 0.90)</label>
+            <input id="sf-prod" type="number" min="0.30" max="0.90" step="0.05" value="${s.productivity}">
+          </div>
+          <div class="field">
+            <label for="sf-target">Caseload target (RN case manager)</label>
+            <input id="sf-target" type="number" min="1" max="40" step="1" value="${s.caseloadTarget ?? 13}">
+            <span class="hint">Industry benchmark: 12 to 14 (Multi-View).</span>
+          </div>
+          <div class="field">
+            <label for="sf-zone">Home zone (optional)</label>
+            <input id="sf-zone" type="text" maxlength="20" value="${escapeHtml(s.homeZone || '')}" placeholder="e.g., Zone-North">
+            <span class="hint">Where this staff member is based. Used by auto-balance to cluster nearby patients.</span>
+          </div>
+          <div class="field" style="grid-column: 1 / -1;">
+            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+              <input id="sf-onshift" type="checkbox" ${s.onShift !== false ? 'checked' : ''} style="accent-color: var(--gold); width: 18px; height: 18px;">
+              On shift today (appears in assignment dropdowns and auto-balance)
+            </label>
+          </div>
+          <div style="grid-column: 1 / -1; display: flex; gap: 10px; margin-top: 12px; border-top: 1px solid var(--border); padding-top: 14px;">
+            <button class="btn btn-gold" type="submit">Save</button>
+            <button class="btn btn-secondary" type="button" id="sf-cancel">Cancel</button>
+          </div>
+        </form>
+      `;
+
+      document.getElementById('staff-form').addEventListener('submit', e => {
+        e.preventDefault();
+        const next = {
+          id: s.id,
+          name: document.getElementById('sf-name').value.trim() || 'Staff',
+          role: document.getElementById('sf-role').value,
+          fteWeekly: Number(document.getElementById('sf-fte').value) || 40,
+          productivity: Number(document.getElementById('sf-prod').value) || 0.65,
+          caseloadTarget: Number(document.getElementById('sf-target').value) || 13,
+          onShift: document.getElementById('sf-onshift').checked,
+          homeZone: document.getElementById('sf-zone').value.trim() || ''
+        };
+        if (editing) {
+          const idx = state.staff.findIndex(x => x.id === editing.id);
+          state.staff[idx] = next;
+        } else {
+          state.staff.push(next);
+        }
+        save(); closeModal(); renderAll();
+      });
+      document.getElementById('sf-cancel').addEventListener('click', closeModal);
+      openModal();
+    }
+
+    function openModal() {
+      const m = document.getElementById('modal');
+      m.hidden = false;
+      const first = m.querySelector('input, select, textarea, button');
+      if (first) first.focus();
+    }
+
+    function closeModal() {
+      const m = document.getElementById('modal');
+      m.hidden = true;
+    }
+
+    /* =====================================================
+       AUTO-ASSIGN
+       ===================================================== */
+    function autoAssign() {
+      if (state.staff.length === 0) {
+        alert('Add at least one staff member first.');
+        return;
+      }
+      const rnStaff = state.staff.filter(s =>
+        s.onShift !== false && (s.role === 'RN' || s.role === 'LVN' || s.role === 'APP')
+      );
+      if (rnStaff.length === 0) {
+        alert('No on-shift RN/LVN/APP available. Mark staff as on-shift in the Staff tab.');
+        return;
+      }
+      // Reset home assignments only; leave inpatient as-is
+      state.patients.forEach(p => {
+        if (p.levelOfCare === 'RHC' || p.levelOfCare === 'CHC') p.assignedTo = '';
+      });
+      const loads = new Map(rnStaff.map(s => [s.id, 0]));
+      const capacities = new Map(rnStaff.map(s => [s.id, (s.fteWeekly || 40) * 60 * (s.productivity || state.settings.productivity)]));
+      const sorted = state.patients
+        .filter(p => p.levelOfCare === 'RHC' || p.levelOfCare === 'CHC')
+        .sort((a, b) => acuityScore(b) - acuityScore(a));
+
+      sorted.forEach(p => {
+        // Pick staff with the lowest current load ratio, preferring zone match
+        let best = null;
+        let bestScore = Infinity;
+        rnStaff.forEach(s => {
+          const ratio = loads.get(s.id) / Math.max(1, capacities.get(s.id));
+          // Penalize cross-zone assignments (lower score is better)
+          const zonePenalty = (s.homeZone && p.driveZone && s.homeZone !== p.driveZone) ? 0.15 : 0;
+          const combined = ratio + zonePenalty;
+          if (combined < bestScore) { bestScore = combined; best = s; }
+        });
+        if (best) {
+          p.assignedTo = best.id;
+          loads.set(best.id, loads.get(best.id) + weeklyMinutesForPatient(p));
+        }
+      });
+      save(); renderAll();
+    }
+
+    /* =====================================================
+       LOG FORM
+       ===================================================== */
+    document.getElementById('log-form').addEventListener('submit', e => {
+      e.preventDefault();
+      const patientId = document.getElementById('log-patient').value;
+      const staffId = document.getElementById('log-staff').value;
+      const date = document.getElementById('log-date').value;
+      const visitType = document.getElementById('log-type').value;
+      const directMinutes = Number(document.getElementById('log-minutes').value);
+      const travelMinutes = Number(document.getElementById('log-travel').value) || 0;
+      const notes = document.getElementById('log-notes').value.trim();
+      if (!patientId || !staffId || !date || !directMinutes) return;
+      const p = state.patients.find(x => x.id === patientId);
+      const tier = p ? acuityTier(acuityScore(p)) : 3;
+      state.visits.push({
+        id: 'v_' + Math.random().toString(36).slice(2,9),
+        patientId, staffId, date, visitType,
+        directMinutes, travelMinutes, notes, tierAtVisit: tier,
+        loggedAt: new Date().toISOString()
+      });
+      // Update patient's lastVisit if newer
+      if (p && (!p.lastVisit || p.lastVisit < date)) p.lastVisit = date;
+      save();
+      e.target.reset();
+      document.getElementById('log-date').valueAsDate = new Date();
+      renderAll();
+    });
+
+    /* =====================================================
+       SETTINGS WIRE-UP
+       ===================================================== */
+    function wireSettings() {
+      const map = {
+        'set-travel': 'travelMultiplier',
+        'set-prod': 'productivity',
+        'set-ipu-ratio': 'ipuRatio',
+        'set-rn-hours': 'rnHoursWeek',
+        'set-admit-min': 'admitMinutes',
+        'set-death-min': 'deathMinutes'
+      };
+      Object.entries(map).forEach(([id, key]) => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.value = state.settings[key];
+        el.addEventListener('input', () => {
+          state.settings[key] = Number(el.value);
+          save();
+          renderAll();
+        });
+      });
+    }
+
+    /* =====================================================
+       EXPORT / IMPORT
+       ===================================================== */
+    document.getElementById('btn-export-json').addEventListener('click', () => {
+      const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      const ts = new Date().toISOString().slice(0,10);
+      a.download = `hospice-acuity-${ts}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    });
+
+    document.getElementById('btn-export-csv').addEventListener('click', () => {
+      const rows = [
+        ['ID','Diagnosis','PPS','Phase','LoC','SymptomSum','Tier','AcuityScore','WeeklyMinutes','LastVisit','AssignedStaff']
+      ];
+      state.patients.forEach(p => {
+        const sc = acuityScore(p);
+        const t = acuityTier(sc);
+        const sxSum = SYMPTOMS.reduce((a,s)=>a+(Number(p.symptoms?.[s.key])||0),0);
+        const st = (state.staff.find(s=>s.id===p.assignedTo)||{}).name || '';
+        rows.push([p.label, p.diagnosis, p.pps, p.phase, p.levelOfCare, sxSum, t, sc, weeklyMinutesForPatient(p), p.lastVisit||'', st]);
+      });
+      // Add visits sheet
+      rows.push([]);
+      rows.push(['Visits']);
+      rows.push(['Date','PatientID','StaffID','VisitType','TierAtVisit','DirectMinutes','TravelMinutes']);
+      state.visits.forEach(v => {
+        rows.push([v.date, v.patientId, v.staffId, v.visitType, v.tierAtVisit, v.directMinutes, v.travelMinutes||0]);
+      });
+      const csv = rows.map(r => r.map(c => `"${String(c==null?'':c).replace(/"/g,'""')}"`).join(',')).join('\n');
+      const blob = new Blob([csv], { type: 'text/csv' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      const ts = new Date().toISOString().slice(0,10);
+      a.download = `hospice-acuity-${ts}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+    });
+
+    document.getElementById('import-file').addEventListener('change', e => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        try {
+          const parsed = JSON.parse(reader.result);
+          if (parsed.patients && parsed.staff && parsed.visits) {
+            if (confirm('Replace current data with imported file?')) {
+              state = Object.assign(state, parsed);
+              save(); renderAll();
+            }
+          } else {
+            alert('Not a recognized export file.');
+          }
+        } catch (err) {
+          alert('Could not parse JSON: ' + err.message);
+        }
+      };
+      reader.readAsText(file);
+      e.target.value = '';
+    });
+
+    document.getElementById('btn-reset').addEventListener('click', () => {
+      if (confirm('This permanently clears all patients, staff, and visits stored on this device. Export first if you want a backup. Continue?')) {
+        localStorage.removeItem(STORAGE_KEY);
+        state = { patients: [], staff: [], visits: [], settings: state.settings, version: 1 };
+        save(); renderAll();
+      }
+    });
+
+    /* =====================================================
+       TABS
+       ===================================================== */
+    function activateTab(name) {
+      document.querySelectorAll('[role="tab"]').forEach(t => {
+        const active = t.dataset.tab === name;
+        t.setAttribute('aria-selected', active ? 'true' : 'false');
+        t.tabIndex = active ? 0 : -1;
+      });
+      document.querySelectorAll('[role="tabpanel"]').forEach(p => {
+        p.hidden = p.id !== `panel-${name}`;
+      });
+    }
+    document.querySelectorAll('[role="tab"]').forEach(t => {
+      t.addEventListener('click', () => activateTab(t.dataset.tab));
+      t.addEventListener('keydown', e => {
+        const tabs = Array.from(document.querySelectorAll('[role="tab"]'));
+        const i = tabs.indexOf(t);
+        if (e.key === 'ArrowRight') { tabs[(i+1)%tabs.length].focus(); tabs[(i+1)%tabs.length].click(); }
+        if (e.key === 'ArrowLeft')  { tabs[(i-1+tabs.length)%tabs.length].focus(); tabs[(i-1+tabs.length)%tabs.length].click(); }
+        if (e.key === 'Home')  { tabs[0].focus(); tabs[0].click(); }
+        if (e.key === 'End')   { tabs[tabs.length-1].focus(); tabs[tabs.length-1].click(); }
+      });
+    });
+
+    /* =====================================================
+       MODAL CLOSE / ESC
+       ===================================================== */
+    document.getElementById('modal-close').addEventListener('click', closeModal);
+    document.getElementById('modal').addEventListener('click', e => {
+      if (e.target.id === 'modal') closeModal();
+    });
+    document.addEventListener('keydown', e => {
+      if (e.key === 'Escape' && !document.getElementById('modal').hidden) closeModal();
+    });
+
+    /* =====================================================
+       BUTTONS
+       ===================================================== */
+    document.getElementById('btn-add-patient').addEventListener('click', () => openPatientModal(null));
+    document.getElementById('btn-add-staff').addEventListener('click', () => openStaffModal(null));
+    document.getElementById('btn-auto-assign').addEventListener('click', autoAssign);
+    document.getElementById('btn-clear-assign').addEventListener('click', () => {
+      if (confirm('Clear all assignments?')) {
+        state.patients.forEach(p => p.assignedTo = '');
+        save(); renderAll();
+      }
+    });
+
+    // Census buttons
+    const btnAddCensus = document.getElementById('btn-add-patient-census');
+    if (btnAddCensus) btnAddCensus.addEventListener('click', () => openPatientModal(null));
+
+    const btnMarkAll = document.getElementById('btn-mark-all-reviewed');
+    if (btnMarkAll) btnMarkAll.addEventListener('click', () => {
+      const t = todayISO();
+      state.patients.forEach(p => p.lastReviewed = t);
+      save(); renderAll();
+    });
+
+    const btnClearReviewed = document.getElementById('btn-clear-reviewed');
+    if (btnClearReviewed) btnClearReviewed.addEventListener('click', () => {
+      state.patients.forEach(p => p.lastReviewed = '');
+      save(); renderAll();
+    });
+
+    // Quick admit form
+    const qaForm = document.getElementById('quick-admit-form');
+    if (qaForm) {
+      qaForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const id = uid();
+        const today = todayISO();
+        const newPatient = {
+          id,
+          label: document.getElementById('qa-id').value || generatePrivateId(),
+          diagnosis: document.getElementById('qa-dx').value,
+          pps: 50,
+          symptoms: { pain:0, dyspnea:0, anxiety:0, nausea:0, vomiting:0, diarrhea:0, constipation:0, agitation:0 },
+          phase: 'stable',
+          levelOfCare: document.getElementById('qa-loc').value,
+          flags: { recentAdmit: true },
+          lastVisit: '',
+          assignedTo: '',
+          driveZone: '',
+          driveMinutes: 0,
+          admitDate: today,
+          lastReviewed: today,
+          createdAt: new Date().toISOString()
+        };
+        state.patients.push(newPatient);
+        save();
+        document.getElementById('qa-id').value = generatePrivateId();
+        renderAll();
+        openPatientModal(id);
+      });
+
+      document.getElementById('qa-regen').addEventListener('click', () => {
+        document.getElementById('qa-id').value = generatePrivateId();
+      });
+    }
+
+    // CSV Import
+    const csvInput = document.getElementById('csv-import');
+    if (csvInput) {
+      csvInput.addEventListener('change', e => {
+        const f = e.target.files?.[0];
+        if (f) importCSV(f);
+        e.target.value = '';
+      });
+    }
+    const btnCsvTemplate = document.getElementById('btn-csv-template');
+    if (btnCsvTemplate) btnCsvTemplate.addEventListener('click', downloadCSVTemplate);
+
+    const btnCsvHelp = document.getElementById('btn-csv-help');
+    if (btnCsvHelp) btnCsvHelp.addEventListener('click', () => {
+      const help = document.getElementById('csv-help');
+      const expanded = btnCsvHelp.getAttribute('aria-expanded') === 'true';
+      btnCsvHelp.setAttribute('aria-expanded', expanded ? 'false' : 'true');
+      help.hidden = expanded;
+    });
+
+    // Alert disclosure toggle
+    const alertToggle = document.getElementById('alert-toggle');
+    if (alertToggle) {
+      alertToggle.addEventListener('click', () => {
+        const expanded = alertToggle.getAttribute('aria-expanded') === 'true';
+        alertToggle.setAttribute('aria-expanded', expanded ? 'false' : 'true');
+        document.getElementById('alert-stack').hidden = expanded;
+      });
+    }
+
+    // Staff bulk shift toggles
+    const btnAllOn = document.getElementById('btn-all-on-shift');
+    if (btnAllOn) btnAllOn.addEventListener('click', () => {
+      state.staff.forEach(s => s.onShift = true);
+      save(); renderAll();
+    });
+    const btnNoneOn = document.getElementById('btn-none-on-shift');
+    if (btnNoneOn) btnNoneOn.addEventListener('click', () => {
+      state.staff.forEach(s => s.onShift = false);
+      save(); renderAll();
+    });
+
+    /* =====================================================
+       UTIL
+       ===================================================== */
+    function escapeHtml(s) {
+      if (s == null) return '';
+      return String(s)
+        .replace(/&/g,'&amp;')
+        .replace(/</g,'&lt;')
+        .replace(/>/g,'&gt;')
+        .replace(/"/g,'&quot;')
+        .replace(/'/g,'&#39;');
+    }
+
+    function renderAll() {
+      renderDashboard();
+      renderCensus();
+      renderRoster();
+      renderWorkflow();
+      renderAssignment();
+      renderForecast();
+      renderLog();
+      renderStaff();
+    }
+
+    /* =====================================================
+       CSV IMPORT (EPIC SHIFT REPORT)
+       ===================================================== */
+    function parseCSV(text) {
+      const rows = [];
+      let i = 0, field = '', row = [], inQuotes = false;
+      while (i < text.length) {
+        const c = text[i];
+        if (inQuotes) {
+          if (c === '"' && text[i + 1] === '"') { field += '"'; i += 2; continue; }
+          if (c === '"') { inQuotes = false; i++; continue; }
+          field += c; i++; continue;
+        }
+        if (c === '"') { inQuotes = true; i++; continue; }
+        if (c === ',') { row.push(field); field = ''; i++; continue; }
+        if (c === '\r') { i++; continue; }
+        if (c === '\n') { row.push(field); rows.push(row); row = []; field = ''; i++; continue; }
+        field += c; i++;
+      }
+      if (field !== '' || row.length) { row.push(field); rows.push(row); }
+      if (!rows.length) return [];
+      const headers = rows[0].map(h => h.toLowerCase().trim());
+      return rows.slice(1)
+        .filter(r => r.some(v => v && v.trim()))
+        .map(r => {
+          const obj = {};
+          headers.forEach((h, idx) => obj[h] = (r[idx] || '').trim());
+          return obj;
+        });
+    }
+
+    const TRUTHY = new Set(['1', 'true', 'yes', 'y', 'x', 'done', 'completed']);
+    function isTruthy(v) { return TRUTHY.has(String(v || '').toLowerCase().trim()); }
+
+    function importCSV(file) {
+      const reader = new FileReader();
+      reader.onload = () => {
+        let rows;
+        try { rows = parseCSV(reader.result); }
+        catch (err) { setImportResult(`CSV parse error: ${err.message}`, 'danger'); return; }
+
+        if (rows.length === 0) {
+          setImportResult('CSV is empty.', 'warn');
+          return;
+        }
+        if (!('token' in rows[0])) {
+          setImportResult('CSV must include a "token" column with PT-XXXX-XX values. Tokenize MRNs in your HIPAA environment before upload.', 'danger');
+          return;
+        }
+
+        const today = todayISO();
+        let updated = 0, created = 0, discharged = 0, tasksMarked = 0, skipped = 0;
+        const phiHits = [];
+
+        rows.forEach(r => {
+          const token = (r.token || '').trim().toUpperCase();
+          if (!token) { skipped++; return; }
+          const phi = phiWarning(token);
+          if (phi) { phiHits.push({ token, warn: phi }); }
+
+          // Discharge handling
+          if (isTruthy(r.discharge)) {
+            const idx = state.patients.findIndex(p => p.label === token);
+            if (idx >= 0) { state.patients.splice(idx, 1); discharged++; }
+            return;
+          }
+
+          let p = state.patients.find(x => x.label === token);
+          if (!p) {
+            p = {
+              id: uid(),
+              label: token,
+              diagnosis: 'other',
+              pps: 50,
+              symptoms: { pain:0, dyspnea:0, anxiety:0, nausea:0, vomiting:0, diarrhea:0, constipation:0, agitation:0 },
+              phase: 'stable',
+              levelOfCare: 'RHC',
+              flags: {},
+              lastVisit: '',
+              assignedTo: '',
+              driveZone: '',
+              driveMinutes: 0,
+              admitDate: today,
+              lastReviewed: today,
+              taskCompletion: {},
+              createdAt: new Date().toISOString()
+            };
+            state.patients.push(p);
+            created++;
+          } else {
+            updated++;
+          }
+          if (!p.taskCompletion) p.taskCompletion = {};
+          if (!p.flags) p.flags = {};
+
+          // Map columns to state
+          if (r.diagnosis)       p.diagnosis = r.diagnosis.toLowerCase();
+          if (r.pps)             p.pps = Math.max(10, Math.min(100, Number(r.pps) || 50));
+          if (r.phase)           p.phase = r.phase.toLowerCase();
+          if (r.level_of_care)   p.levelOfCare = r.level_of_care.toUpperCase();
+          if (r.admit_date)      p.admitDate = r.admit_date;
+          if (r.last_visit)      p.lastVisit = r.last_visit;
+          if (r.drive_zone)      p.driveZone = r.drive_zone;
+          if (r.drive_minutes)   p.driveMinutes = Number(r.drive_minutes) || 0;
+          if (r.assigned_to)     {
+            const match = state.staff.find(s => s.name?.toLowerCase() === r.assigned_to.toLowerCase());
+            if (match) p.assignedTo = match.id;
+          }
+
+          // Symptoms (0-3)
+          SYMPTOMS.forEach(s => {
+            const v = r['sx_' + s.key];
+            if (v != null && v !== '') p.symptoms[s.key] = Math.max(0, Math.min(3, Number(v) || 0));
+          });
+
+          // Flags
+          const flagMap = {
+            'flag_imminent_death':     'deathImminent',
+            'flag_recent_admit':       'recentAdmit',
+            'flag_recert_due':         'recertDue',
+            'flag_sole_caregiver':     'soleCaregiver',
+            'flag_two_person':         'twoPersonVisit',
+            'flag_wound':              'woundCare',
+            'flag_iv':                 'iv',
+            'flag_complex_family':     'complexFamily',
+            'flag_hospitalization_risk': 'hospitalizationRisk',
+            'flag_spiritual_distress': 'spiritualDistress',
+            'flag_food_insecurity':    'foodInsecurity',
+            'flag_pediatric':          'pediatric'
+          };
+          Object.entries(flagMap).forEach(([col, flag]) => {
+            if (col in r && r[col] !== '') p.flags[flag] = isTruthy(r[col]);
+          });
+
+          // Task completion columns
+          TASK_TYPES.forEach(def => {
+            const col = 'task_' + def.key;
+            const val = r[col];
+            if (val) {
+              const dateMatch = String(val).match(/\d{4}-\d{2}-\d{2}/);
+              const date = dateMatch ? dateMatch[0] : (isTruthy(val) ? today : null);
+              if (date) {
+                p.taskCompletion[def.key] = { lastDate: date, source: 'csv' };
+                tasksMarked++;
+              }
+            }
+          });
+
+          p.lastReviewed = today;
+        });
+
+        save();
+        renderAll();
+        let msg = `Import complete. Created ${created}, updated ${updated}, discharged ${discharged}, task completions recorded ${tasksMarked}.`;
+        if (skipped) msg += ` Skipped ${skipped} rows with missing token.`;
+        if (phiHits.length) msg += ` Possible PHI in token(s): ${phiHits.slice(0,3).map(h => h.token).join(', ')}${phiHits.length > 3 ? '...' : ''}. Re-tokenize before reuse.`;
+        setImportResult(msg, phiHits.length ? 'warn' : 'ok');
+      };
+      reader.onerror = () => setImportResult('Could not read file.', 'danger');
+      reader.readAsText(file);
+    }
+
+    function setImportResult(message, type) {
+      const host = document.getElementById('csv-import-result');
+      if (!host) return;
+      host.innerHTML = `<div class="alert ${type || ''}" style="margin: 12px 0 0;">${escapeHtml(message)}</div>`;
+    }
+
+    function downloadCSVTemplate() {
+      const cols = [
+        'token','diagnosis','pps','phase','level_of_care','admit_date','last_visit','drive_zone','drive_minutes','assigned_to',
+        'sx_pain','sx_dyspnea','sx_anxiety','sx_nausea','sx_vomiting','sx_diarrhea','sx_constipation','sx_agitation',
+        'task_rn_visit','task_lvn_visit','task_hha_visit','task_msw_visit','task_chaplain_visit','task_idg_review',
+        'task_hope_admission','task_hope_huv1','task_hope_huv2','task_sfv','task_recert_f2f','task_death_visit',
+        'flag_imminent_death','flag_recent_admit','flag_recert_due','flag_sole_caregiver','flag_two_person','flag_wound','flag_iv','flag_complex_family','flag_hospitalization_risk',
+        'discharge'
+      ];
+      const sample = [
+        'PT-X7K2-9M','cancer','40','deteriorating','RHC','2026-05-01','2026-05-17','Zone-North','25','Maria S., RN',
+        '2','1','1','0','0','0','1','0',
+        '2026-05-17','','2026-05-15','2026-05-15','2026-05-14','2026-05-10',
+        '2026-05-01','','','2026-05-17','','',
+        '','','','','','1','','','1',
+        ''
+      ];
+      const csv = cols.join(',') + '\n' + sample.map(v => `"${v.replace(/"/g,'""')}"`).join(',') + '\n';
+      const blob = new Blob([csv], { type: 'text/csv' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'cadence-shift-template.csv';
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+
+    /* =====================================================
+       BOOTSTRAP
+       ===================================================== */
+    load();
+    wireSettings();
+    document.getElementById('log-date').valueAsDate = new Date();
+
+    // Seed demo data if empty
+    if (state.staff.length === 0 && state.patients.length === 0) {
+      state.staff = [
+        { id: 's_demo1', name: 'Maria S., RN',  role: 'RN',   fteWeekly: 40, productivity: 0.65, caseloadTarget: 13, onShift: true,  homeZone: 'Zone-North' },
+        { id: 's_demo2', name: 'David K., RN',  role: 'RN',   fteWeekly: 40, productivity: 0.65, caseloadTarget: 13, onShift: true,  homeZone: 'Zone-South' },
+        { id: 's_demo3', name: 'Tom J., LVN',   role: 'LVN',  fteWeekly: 40, productivity: 0.70, caseloadTarget: 0,  onShift: true,  homeZone: 'Zone-North' },
+        { id: 's_demo4', name: 'Anna P., CNA',  role: 'HHA',  fteWeekly: 40, productivity: 0.75, caseloadTarget: 0,  onShift: true,  homeZone: 'Zone-South' },
+        { id: 's_demo5', name: 'Rachel M., MSW',role: 'SW',   fteWeekly: 32, productivity: 0.60, caseloadTarget: 0,  onShift: true,  homeZone: '' },
+        { id: 's_demo6', name: 'Pastor L.',     role: 'CHAP', fteWeekly: 24, productivity: 0.55, caseloadTarget: 0,  onShift: false, homeZone: '' },
+        { id: 's_demo7', name: 'NP Jordan',     role: 'APP',  fteWeekly: 32, productivity: 0.60, caseloadTarget: 0,  onShift: true,  homeZone: '' }
+      ];
+      const today = new Date().toISOString().slice(0, 10);
+      const minusDays = (n) => { const d = new Date(); d.setDate(d.getDate() - n); return d.toISOString().slice(0, 10); };
+      state.patients = [
+        {
+          id: uid(), label: generatePrivateId(), diagnosis: 'cancer', pps: 40,
+          symptoms: { pain: 2, dyspnea: 1, anxiety: 1, nausea: 0, vomiting: 0, diarrhea: 0, constipation: 1, agitation: 0 },
+          phase: 'deteriorating', levelOfCare: 'RHC',
+          flags: { hospitalizationRisk: true, woundCare: true }, lastVisit: minusDays(2), assignedTo: '',
+          driveZone: 'Zone-North', driveMinutes: 25, admitDate: minusDays(12), lastReviewed: '',
+          taskCompletion: {
+            rn_visit:       { lastDate: minusDays(2),  source: 'csv' },
+            msw_visit:      { lastDate: minusDays(6),  source: 'csv' },
+            chaplain_visit: { lastDate: minusDays(9),  source: 'csv' },
+            hha_visit:      { lastDate: minusDays(3),  source: 'csv' },
+            hope_admission: { lastDate: minusDays(12), source: 'csv' },
+            hope_huv1:      { lastDate: minusDays(6),  source: 'csv' }
+          },
+          createdAt: new Date().toISOString()
+        },
+        {
+          id: uid(), label: generatePrivateId(), diagnosis: 'dementia', pps: 30,
+          symptoms: { pain: 1, dyspnea: 0, anxiety: 0, nausea: 0, vomiting: 0, diarrhea: 0, constipation: 2, agitation: 2 },
+          phase: 'unstable', levelOfCare: 'RHC',
+          flags: { soleCaregiver: true, complexFamily: true, twoPersonVisit: true }, lastVisit: minusDays(4), assignedTo: '',
+          driveZone: 'Zone-North', driveMinutes: 35, admitDate: minusDays(20), lastReviewed: '',
+          taskCompletion: {
+            rn_visit:       { lastDate: minusDays(4),  source: 'csv' },
+            hope_admission: { lastDate: minusDays(20), source: 'csv' },
+            hope_huv1:      { lastDate: minusDays(10), source: 'csv' }
+          },
+          createdAt: new Date().toISOString()
+        },
+        {
+          id: uid(), label: generatePrivateId(), diagnosis: 'heart', pps: 20,
+          symptoms: { pain: 1, dyspnea: 3, anxiety: 2, nausea: 0, vomiting: 0, diarrhea: 0, constipation: 0, agitation: 0 },
+          phase: 'dying', levelOfCare: 'GIP',
+          flags: { deathImminent: true }, lastVisit: today, assignedTo: '',
+          driveZone: 'IPU', driveMinutes: 0, admitDate: minusDays(35), lastReviewed: '',
+          taskCompletion: {
+            rn_visit:       { lastDate: today,         source: 'csv' },
+            msw_visit:      { lastDate: minusDays(1),  source: 'csv' },
+            chaplain_visit: { lastDate: minusDays(1),  source: 'csv' },
+            hope_admission: { lastDate: minusDays(35), source: 'csv' },
+            hope_huv1:      { lastDate: minusDays(25), source: 'csv' },
+            hope_huv2:      { lastDate: minusDays(10), source: 'csv' }
+          },
+          createdAt: new Date().toISOString()
+        },
+        {
+          id: uid(), label: generatePrivateId(), diagnosis: 'lung', pps: 60,
+          symptoms: { pain: 1, dyspnea: 2, anxiety: 1, nausea: 0, vomiting: 0, diarrhea: 0, constipation: 0, agitation: 0 },
+          phase: 'stable', levelOfCare: 'RHC',
+          flags: {}, lastVisit: minusDays(5), assignedTo: '',
+          driveZone: 'Zone-South', driveMinutes: 20, admitDate: minusDays(8), lastReviewed: '',
+          taskCompletion: {
+            rn_visit:       { lastDate: minusDays(5),  source: 'csv' },
+            hha_visit:      { lastDate: minusDays(2),  source: 'csv' },
+            hope_admission: { lastDate: minusDays(8),  source: 'csv' }
+          },
+          createdAt: new Date().toISOString()
+        }
+      ];
+      save();
+    }
+
+    renderAll();
+  })();
+
+  /* =====================================================
+     IFRAME HEIGHT SENDER (Cowork / Kajabi embed support)
+     ===================================================== */
+  (function() {
+    var id = 'hospice-acuity-staffing';
+    function send() {
+      var h = Math.max(
+        document.body.scrollHeight,
+        document.documentElement.scrollHeight,
+        document.body.offsetHeight,
+        document.documentElement.offsetHeight
+      );
+      try {
+        window.parent.postMessage({ id: id, height: h, type: 'resize' }, '*');
+      } catch (e) {}
+    }
+    window.addEventListener('load', send);
+    window.addEventListener('resize', send);
+    if (typeof ResizeObserver !== 'undefined') {
+      new ResizeObserver(send).observe(document.body);
+    }
+    var mo = new MutationObserver(send);
+    mo.observe(document.body, { subtree: true, childList: true, attributes: true });
+  })();
+  </script>
+</body>
+</html>
